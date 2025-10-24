@@ -16,6 +16,7 @@ export interface Ticket {
   id: string;
   bookingCode: string;
   qrCode: string;
+  userId: string;
   trainId: string;
   trainName: string;
   route: string;
@@ -25,7 +26,6 @@ export interface Ticket {
   departureTime: string;
   arrivalTime: string;
   passengerName: string;
-  passengerEmail: string;
   paymentMethod: 'cash' | 'online';
   paymentStatus: 'pending' | 'paid';
   createdAt: string;
@@ -159,6 +159,13 @@ export const searchTrains = (origin: string, destination: string, date: string):
   );
 };
 
+export const getTrainById = (id: string): Train | null => {
+  const trains = getTrains();
+  return trains.find(t => t.id === id) || null;
+};
+
+export const getAllTrains = getTrains;
+
 // Ticket operations
 export const getTickets = (): Ticket[] => {
   const tickets = localStorage.getItem(STORAGE_KEYS.TICKETS);
@@ -191,6 +198,13 @@ export const getTicketByCode = (code: string): Ticket | null => {
   const tickets = getTickets();
   return tickets.find(t => t.bookingCode === code || t.qrCode === code) || null;
 };
+
+export const getUserTickets = (userId: string): Ticket[] => {
+  const tickets = getTickets();
+  return tickets.filter(t => t.userId === userId);
+};
+
+export const getAllTickets = getTickets;
 
 // User operations
 export const getCurrentUser = (): User | null => {
