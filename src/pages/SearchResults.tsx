@@ -3,13 +3,13 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Train, Clock, MapPin, ArrowRight, IndianRupee } from 'lucide-react';
-import { searchTrains, Train as TrainType } from '@/lib/storage';
+import { Train, Clock, MapPin, ArrowRight, IndianRupee, Navigation } from 'lucide-react';
+import { searchTrains } from '@/lib/storage';
 
 const SearchResults = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const [trains, setTrains] = useState<TrainType[]>([]);
+  const [trains, setTrains] = useState([]);
 
   const origin = searchParams.get('origin') || '';
   const destination = searchParams.get('destination') || '';
@@ -84,6 +84,12 @@ const SearchResults = () => {
                   <div className="flex-1 min-w-[200px]">
                     <h3 className="text-xl font-bold text-primary mb-1">{train.name}</h3>
                     <p className="text-sm text-muted-foreground">{train.route}</p>
+                    
+                    {/* Distance Information */}
+                    <div className="flex items-center gap-2 mt-2 text-sm text-muted-foreground">
+                      <Navigation className="h-4 w-4" />
+                      <span>{train.distance} km • Rs. {train.price} total fare</span>
+                    </div>
                   </div>
 
                   <div className="flex items-center gap-8">
@@ -111,12 +117,16 @@ const SearchResults = () => {
                       <IndianRupee className="h-5 w-5" />
                       <p className="text-2xl font-bold text-primary">{train.price}</p>
                     </div>
-                    <p className="text-sm text-muted-foreground mb-3">
+                    <p className="text-sm text-muted-foreground mb-1">
                       {train.availableSeats} seats available
                     </p>
+                    <p className="text-xs text-muted-foreground">
+                      Rs. {(train.price / train.distance).toFixed(2)}/km
+                    </p>
                     <Button
-                      onClick={() => navigate(`/book/${train.id}?date=${date}`)}
+                      onClick={() => navigate(`/booking/${train.id}?date=${date}`)}
                       disabled={train.availableSeats === 0}
+                      className="mt-2"
                     >
                       Book Now
                     </Button>

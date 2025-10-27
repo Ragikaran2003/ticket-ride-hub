@@ -1,143 +1,228 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Train, Calendar, MapPin } from 'lucide-react';
-import { initializeData } from '@/lib/storage';
+import { Calendar as CalendarComponent } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar, Train, MapPin, Search, Clock, Shield, Ticket, Users } from 'lucide-react';
+import { format } from 'date-fns';
+import { cn } from '@/lib/utils';
+import { searchTrains } from '@/lib/storage';
+import { useToast } from '@/hooks/use-toast';
 
 const Home = () => {
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [origin, setOrigin] = useState('');
   const [destination, setDestination] = useState('');
-  const [date, setDate] = useState('');
+  const [date, setDate] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
 
-  useEffect(() => {
-    initializeData();
-  }, []);
+  const handleSearch = async () => {
+    if (!origin.trim() || !destination.trim()) {
+      toast({
+        title: 'Please enter origin and destination',
+        variant: 'destructive',
+      });
+      return;
+    }
 
-  const handleSearch = () => {
-    if (origin && destination && date) {
-      navigate(`/search?origin=${origin}&destination=${destination}&date=${date}`);
+    if (!date) {
+      toast({
+        title: 'Please select travel date',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsLoading(true);
+    
+    try {
+      const trains = searchTrains(origin, destination, date);
+      
+      if (trains.length === 0) {
+        toast({
+          title: 'No trains found',
+          description: 'Please try different stations or date',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      navigate(`/search?origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}&date=${format(date, 'yyyy-MM-dd')}`);
+    } catch (error) {
+      toast({
+        title: 'Search failed',
+        description: 'Please try again',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
 
+  const features = [
+    {
+      icon: <Ticket className="h-8 w-8" />,
+      title: 'Easy Booking',
+      description: 'Book your train tickets in just a few clicks'
+    },
+    {
+      icon: <Clock className="h-8 w-8" />,
+      title: 'Real-time Status',
+      description: 'Get live train status and seat availability'
+    },
+    {
+      icon: <Shield className="h-8 w-8" />,
+      title: 'Secure Payment',
+      description: 'Multiple secure payment options available'
+    },
+    {
+      icon: <Users className="h-8 w-8" />,
+      title: '24/7 Support',
+      description: 'Round-the-clock customer support'
+    }
+  ];
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-accent/5">
-      {/* Header */}
-      <header className="border-b bg-card/50 backdrop-blur-sm">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Train className="h-8 w-8 text-primary" />
-            <h1 className="text-2xl font-bold text-primary">Ticket Ride Hub</h1>
-          </div>
-          <div className="flex gap-2">
-            <Button variant="ghost" onClick={() => navigate('/login')}>Login</Button>
-            <Button onClick={() => navigate('/register')}>Sign Up</Button>
-            <Button variant="outline" onClick={() => navigate('/admin')}>Admin</Button>
-          </div>
-        </div>
-      </header>
-
       {/* Hero Section */}
-      <main className="container mx-auto px-4 py-16">
-        <div className="text-center mb-12">
-          <h2 className="text-5xl font-bold mb-4 bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-            Your Journey Starts Here
-          </h2>
-          <p className="text-xl text-muted-foreground">
-            Book train tickets easily and travel with confidence
-          </p>
-        </div>
-
-        {/* Search Card */}
-        <Card className="max-w-4xl mx-auto p-8 shadow-lg">
-          <div className="grid md:grid-cols-3 gap-6">
-            <div>
-              <Label htmlFor="origin" className="flex items-center gap-2 mb-2">
-                <MapPin className="h-4 w-4 text-primary" />
-                From
-              </Label>
-              <Input
-                id="origin"
-                placeholder="Origin city"
-                value={origin}
-                onChange={(e) => setOrigin(e.target.value)}
-              />
+      <section className="relative py-20 px-4">
+        <div className="container mx-auto max-w-6xl">
+          <div className="text-center mb-16">
+            <div className="flex items-center justify-center gap-3 mb-6">
+              <Train className="h-12 w-12 text-primary" />
+              <h1 className="text-5xl font-bold text-primary">Ticket Ride Hub</h1>
             </div>
-
-            <div>
-              <Label htmlFor="destination" className="flex items-center gap-2 mb-2">
-                <MapPin className="h-4 w-4 text-accent" />
-                To
-              </Label>
-              <Input
-                id="destination"
-                placeholder="Destination city"
-                value={destination}
-                onChange={(e) => setDestination(e.target.value)}
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="date" className="flex items-center gap-2 mb-2">
-                <Calendar className="h-4 w-4 text-primary" />
-                Date
-              </Label>
-              <Input
-                id="date"
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                min={new Date().toISOString().split('T')[0]}
-              />
-            </div>
+            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+              Your journey begins here. Book train tickets effortlessly and travel with confidence across India.
+            </p>
           </div>
 
-          <Button
-            className="w-full mt-6"
-            size="lg"
-            onClick={handleSearch}
-            disabled={!origin || !destination || !date}
-          >
-            Search Trains
-          </Button>
-        </Card>
+          {/* Search Card */}
+          <Card className="p-8 max-w-4xl mx-auto shadow-lg border-primary/20">
+            <div className="grid md:grid-cols-4 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="origin">From</Label>
+                <div className="relative">
+                  <MapPin className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="origin"
+                    placeholder="Origin station"
+                    value={origin}
+                    onChange={(e) => setOrigin(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+              </div>
 
-        {/* Features */}
-        <div className="grid md:grid-cols-3 gap-8 mt-16">
-          <Card className="p-6 text-center">
-            <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Train className="h-6 w-6 text-primary" />
-            </div>
-            <h3 className="font-semibold mb-2">Easy Booking</h3>
-            <p className="text-sm text-muted-foreground">
-              Search and book your train tickets in just a few clicks
-            </p>
-          </Card>
+              <div className="space-y-2">
+                <Label htmlFor="destination">To</Label>
+                <div className="relative">
+                  <MapPin className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="destination"
+                    placeholder="Destination station"
+                    value={destination}
+                    onChange={(e) => setDestination(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+              </div>
 
-          <Card className="p-6 text-center">
-            <div className="w-12 h-12 bg-accent/10 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Calendar className="h-6 w-6 text-accent" />
-            </div>
-            <h3 className="font-semibold mb-2">Instant Tickets</h3>
-            <p className="text-sm text-muted-foreground">
-              Get your ticket PDF with QR code immediately after booking
-            </p>
-          </Card>
+              <div className="space-y-2">
+                <Label htmlFor="date">Travel Date</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-full justify-start text-left font-normal",
+                        !date && "text-muted-foreground"
+                      )}
+                    >
+                      <Calendar className="mr-2 h-4 w-4" />
+                      {date ? format(date, "PPP") : "Pick a date"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0">
+                    <CalendarComponent
+                      mode="single"
+                      selected={date}
+                      onSelect={setDate}
+                      disabled={(date) => date < new Date()}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
 
-          <Card className="p-6 text-center">
-            <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
-              <MapPin className="h-6 w-6 text-primary" />
+              <div className="space-y-2">
+                <Label className="invisible">Search</Label>
+                <Button 
+                  className="w-full" 
+                  onClick={handleSearch}
+                  disabled={isLoading}
+                >
+                  {isLoading ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      Searching...
+                    </>
+                  ) : (
+                    <>
+                      <Search className="h-4 w-4 mr-2" />
+                      Search Trains
+                    </>
+                  )}
+                </Button>
+              </div>
             </div>
-            <h3 className="font-semibold mb-2">Wide Network</h3>
-            <p className="text-sm text-muted-foreground">
-              Travel across multiple cities with our extensive railway network
-            </p>
           </Card>
         </div>
-      </main>
+      </section>
+
+      {/* Features Section */}
+      <section className="py-16 px-4 bg-card">
+        <div className="container mx-auto max-w-6xl">
+          <h2 className="text-3xl font-bold text-center mb-12 text-primary">Why Choose Ticket Ride Hub?</h2>
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
+            {features.map((feature, index) => (
+              <Card key={index} className="p-6 text-center border-primary/10 hover:border-primary/30 transition-all">
+                <div className="bg-primary/10 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <div className="text-primary">
+                    {feature.icon}
+                  </div>
+                </div>
+                <h3 className="text-lg font-bold mb-2">{feature.title}</h3>
+                <p className="text-sm text-muted-foreground">{feature.description}</p>
+              </Card>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Stats Section */}
+      <section className="py-16 px-4">
+        <div className="container mx-auto max-w-6xl">
+          <div className="grid md:grid-cols-3 gap-8 text-center">
+            <div>
+              <div className="text-4xl font-bold text-primary mb-2">50K+</div>
+              <p className="text-muted-foreground">Happy Travelers</p>
+            </div>
+            <div>
+              <div className="text-4xl font-bold text-primary mb-2">100+</div>
+              <p className="text-muted-foreground">Train Routes</p>
+            </div>
+            <div>
+              <div className="text-4xl font-bold text-primary mb-2">24/7</div>
+              <p className="text-muted-foreground">Customer Support</p>
+            </div>
+          </div>
+        </div>
+      </section>
     </div>
   );
 };

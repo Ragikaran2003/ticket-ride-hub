@@ -1,8 +1,7 @@
 import { jsPDF } from 'jspdf';
 import QRCode from 'qrcode';
-import { Ticket } from './storage';
 
-export const generateTicketPDF = async (ticket: Ticket): Promise<void> => {
+export const generateTicketPDF = async (ticket) => {
   const pdf = new jsPDF();
   
   // Generate QR code
@@ -12,8 +11,8 @@ export const generateTicketPDF = async (ticket: Ticket): Promise<void> => {
   });
 
   // Set colors
-  const primaryColor: [number, number, number] = [28, 47, 84]; // Railway blue
-  const accentColor: [number, number, number] = [234, 146, 56]; // Amber
+  const primaryColor = [28, 47, 84]; // Railway blue
+  const accentColor = [234, 146, 56]; // Amber
   
   // Header background
   pdf.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2]);

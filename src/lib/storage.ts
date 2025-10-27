@@ -1,50 +1,5 @@
 // Local storage utilities for the train booking system
 
-export interface Train {
-  id: string;
-  name: string;
-  route: string;
-  origin: string;
-  destination: string;
-  departureTime: string;
-  arrivalTime: string;
-  price: number;
-  availableSeats: number;
-}
-
-export interface Ticket {
-  id: string;
-  bookingCode: string;
-  qrCode: string;
-  userId: string;
-  trainId: string;
-  trainName: string;
-  route: string;
-  origin: string;
-  destination: string;
-  travelDate: string;
-  departureTime: string;
-  arrivalTime: string;
-  passengerName: string;
-  paymentMethod: 'cash' | 'online';
-  paymentStatus: 'pending' | 'paid';
-  createdAt: string;
-}
-
-export interface User {
-  id: string;
-  name: string;
-  email: string;
-  password: string;
-}
-
-export interface Admin {
-  id: string;
-  name: string;
-  email: string;
-  password: string;
-}
-
 const STORAGE_KEYS = {
   TRAINS: 'ticket_ride_trains',
   TICKETS: 'ticket_ride_tickets',
@@ -57,7 +12,7 @@ const STORAGE_KEYS = {
 // Initialize with sample data
 export const initializeData = () => {
   if (!localStorage.getItem(STORAGE_KEYS.TRAINS)) {
-    const sampleTrains: Train[] = [
+    const sampleTrains = [
       {
         id: '1',
         name: 'Express 101',
@@ -68,6 +23,7 @@ export const initializeData = () => {
         arrivalTime: '16:30',
         price: 1200,
         availableSeats: 50,
+        distance: 1400,
       },
       {
         id: '2',
@@ -79,6 +35,7 @@ export const initializeData = () => {
         arrivalTime: '10:05',
         price: 2100,
         availableSeats: 40,
+        distance: 1300,
       },
       {
         id: '3',
@@ -90,17 +47,18 @@ export const initializeData = () => {
         arrivalTime: '11:00',
         price: 800,
         availableSeats: 60,
+        distance: 350,
       },
     ];
     localStorage.setItem(STORAGE_KEYS.TRAINS, JSON.stringify(sampleTrains));
   }
 
   if (!localStorage.getItem(STORAGE_KEYS.ADMINS)) {
-    const defaultAdmin: Admin = {
+    const defaultAdmin = {
       id: '1',
       name: 'Admin',
       email: 'admin@ticketride.com',
-      password: 'admin123', // In production, this would be hashed
+      password: 'admin123',
     };
     localStorage.setItem(STORAGE_KEYS.ADMINS, JSON.stringify([defaultAdmin]));
   }
@@ -115,12 +73,12 @@ export const initializeData = () => {
 };
 
 // Train operations
-export const getTrains = (): Train[] => {
+export const getTrains = () => {
   const trains = localStorage.getItem(STORAGE_KEYS.TRAINS);
   return trains ? JSON.parse(trains) : [];
 };
 
-export const addTrain = (train: Omit<Train, 'id'>): Train => {
+export const addTrain = (train) => {
   const trains = getTrains();
   const newTrain = {
     ...train,
@@ -131,7 +89,7 @@ export const addTrain = (train: Omit<Train, 'id'>): Train => {
   return newTrain;
 };
 
-export const updateTrain = (id: string, updates: Partial<Train>): Train | null => {
+export const updateTrain = (id, updates) => {
   const trains = getTrains();
   const index = trains.findIndex(t => t.id === id);
   if (index === -1) return null;
@@ -141,7 +99,7 @@ export const updateTrain = (id: string, updates: Partial<Train>): Train | null =
   return trains[index];
 };
 
-export const deleteTrain = (id: string): boolean => {
+export const deleteTrain = (id) => {
   const trains = getTrains();
   const filtered = trains.filter(t => t.id !== id);
   if (filtered.length === trains.length) return false;
@@ -150,7 +108,7 @@ export const deleteTrain = (id: string): boolean => {
   return true;
 };
 
-export const searchTrains = (origin: string, destination: string, date: string): Train[] => {
+export const searchTrains = (origin, destination, date) => {
   const trains = getTrains();
   return trains.filter(
     t => t.origin.toLowerCase().includes(origin.toLowerCase()) &&
@@ -159,7 +117,7 @@ export const searchTrains = (origin: string, destination: string, date: string):
   );
 };
 
-export const getTrainById = (id: string): Train | null => {
+export const getTrainById = (id) => {
   const trains = getTrains();
   return trains.find(t => t.id === id) || null;
 };
@@ -167,15 +125,15 @@ export const getTrainById = (id: string): Train | null => {
 export const getAllTrains = getTrains;
 
 // Ticket operations
-export const getTickets = (): Ticket[] => {
+export const getTickets = () => {
   const tickets = localStorage.getItem(STORAGE_KEYS.TICKETS);
   return tickets ? JSON.parse(tickets) : [];
 };
 
-export const addTicket = (ticket: Omit<Ticket, 'id' | 'bookingCode' | 'qrCode' | 'createdAt'>): Ticket => {
+export const addTicket = (ticket) => {
   const tickets = getTickets();
   const bookingCode = `TRH${Date.now().toString().slice(-8)}`;
-  const newTicket: Ticket = {
+  const newTicket = {
     ...ticket,
     id: Date.now().toString(),
     bookingCode,
@@ -194,12 +152,12 @@ export const addTicket = (ticket: Omit<Ticket, 'id' | 'bookingCode' | 'qrCode' |
   return newTicket;
 };
 
-export const getTicketByCode = (code: string): Ticket | null => {
+export const getTicketByCode = (code) => {
   const tickets = getTickets();
   return tickets.find(t => t.bookingCode === code || t.qrCode === code) || null;
 };
 
-export const getUserTickets = (userId: string): Ticket[] => {
+export const getUserTickets = (userId) => {
   const tickets = getTickets();
   return tickets.filter(t => t.userId === userId);
 };
@@ -207,12 +165,12 @@ export const getUserTickets = (userId: string): Ticket[] => {
 export const getAllTickets = getTickets;
 
 // User operations
-export const getCurrentUser = (): User | null => {
+export const getCurrentUser = () => {
   const user = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
   return user ? JSON.parse(user) : null;
 };
 
-export const setCurrentUser = (user: User | null) => {
+export const setCurrentUser = (user) => {
   if (user) {
     localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(user));
   } else {
@@ -220,31 +178,31 @@ export const setCurrentUser = (user: User | null) => {
   }
 };
 
-export const registerUser = (name: string, email: string, password: string): User => {
+export const registerUser = (name, email, password) => {
   const users = JSON.parse(localStorage.getItem(STORAGE_KEYS.USERS) || '[]');
-  const newUser: User = {
+  const newUser = {
     id: Date.now().toString(),
     name,
     email,
-    password, // In production, this would be hashed
+    password,
   };
   users.push(newUser);
   localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
   return newUser;
 };
 
-export const loginUser = (email: string, password: string): User | null => {
+export const loginUser = (email, password) => {
   const users = JSON.parse(localStorage.getItem(STORAGE_KEYS.USERS) || '[]');
-  return users.find((u: User) => u.email === email && u.password === password) || null;
+  return users.find((u) => u.email === email && u.password === password) || null;
 };
 
 // Admin operations
-export const getCurrentAdmin = (): Admin | null => {
+export const getCurrentAdmin = () => {
   const admin = localStorage.getItem(STORAGE_KEYS.CURRENT_ADMIN);
   return admin ? JSON.parse(admin) : null;
 };
 
-export const setCurrentAdmin = (admin: Admin | null) => {
+export const setCurrentAdmin = (admin) => {
   if (admin) {
     localStorage.setItem(STORAGE_KEYS.CURRENT_ADMIN, JSON.stringify(admin));
   } else {
@@ -252,7 +210,7 @@ export const setCurrentAdmin = (admin: Admin | null) => {
   }
 };
 
-export const loginAdmin = (email: string, password: string): Admin | null => {
+export const loginAdmin = (email, password) => {
   const admins = JSON.parse(localStorage.getItem(STORAGE_KEYS.ADMINS) || '[]');
-  return admins.find((a: Admin) => a.email === email && a.password === password) || null;
+  return admins.find((a) => a.email === email && a.password === password) || null;
 };

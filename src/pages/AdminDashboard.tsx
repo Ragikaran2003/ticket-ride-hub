@@ -15,21 +15,19 @@ import {
   updateTrain, 
   deleteTrain,
   getAllTickets,
-  getTicketByCode,
-  Train as TrainType,
-  Ticket as TicketType
+  getTicketByCode
 } from '@/lib/storage';
 import { useToast } from '@/hooks/use-toast';
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [trains, setTrains] = useState<TrainType[]>([]);
-  const [tickets, setTickets] = useState<TicketType[]>([]);
+  const [trains, setTrains] = useState([]);
+  const [tickets, setTickets] = useState([]);
   const [searchCode, setSearchCode] = useState('');
-  const [verifiedTicket, setVerifiedTicket] = useState<TicketType | null>(null);
+  const [verifiedTicket, setVerifiedTicket] = useState(null);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-  const [editingTrain, setEditingTrain] = useState<TrainType | null>(null);
+  const [editingTrain, setEditingTrain] = useState(null);
   
   const [formData, setFormData] = useState({
     name: '',
@@ -104,7 +102,7 @@ const AdminDashboard = () => {
     resetForm();
   };
 
-  const handleEdit = (train: TrainType) => {
+  const handleEdit = (train) => {
     setEditingTrain(train);
     setFormData({
       name: train.name,
@@ -119,7 +117,7 @@ const AdminDashboard = () => {
     setIsAddDialogOpen(true);
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = (id) => {
     if (confirm('Are you sure you want to delete this train?')) {
       deleteTrain(id);
       toast({ title: 'Train deleted' });

@@ -4,14 +4,14 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Train, Download, MapPin, Clock, Calendar, LogOut, QrCode } from 'lucide-react';
-import { getCurrentUser, getUserTickets, Ticket } from '@/lib/storage';
+import { getCurrentUser, getUserTickets } from '@/lib/storage';
 import { generateTicketPDF } from '@/lib/pdfGenerator';
 import { useToast } from '@/hooks/use-toast';
 
 const Dashboard = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [tickets, setTickets] = useState([]);
   const user = getCurrentUser();
 
   useEffect(() => {
@@ -22,7 +22,7 @@ const Dashboard = () => {
     setTickets(getUserTickets(user.id));
   }, [user, navigate]);
 
-  const handleDownload = async (ticket: Ticket) => {
+  const handleDownload = async (ticket) => {
     try {
       await generateTicketPDF(ticket);
       toast({
@@ -38,7 +38,7 @@ const Dashboard = () => {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('currentUser');
+    localStorage.removeItem('ticket_ride_current_user');
     navigate('/');
   };
 
