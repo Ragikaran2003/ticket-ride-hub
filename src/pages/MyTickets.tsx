@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Train, Calendar, MapPin, Clock, Download, Ticket } from 'lucide-react';
+import { Train, Calendar, MapPin, Clock, Download, Ticket, Navigation } from 'lucide-react';
 import { getCurrentUser, getUserTickets } from '@/lib/storage';
 import { generateTicketPDF } from '@/lib/pdfGenerator';
 import { useToast } from '@/hooks/use-toast';
@@ -13,16 +13,22 @@ const MyTickets = () => {
   const { toast } = useToast();
   const [tickets, setTickets] = useState([]);
   const [downloading, setDownloading] = useState(null);
-
-  const user = getCurrentUser();
+  const [user, setUser] = useState(null);
+  const [refresh, setRefresh] = useState(false);
 
   useEffect(() => {
-    if (!user) {
+    const currentUser = getCurrentUser();
+    setUser(currentUser);
+    
+    if (!currentUser) {
       navigate('/login');
       return;
     }
-    setTickets(getUserTickets(user.id));
-  }, [user, navigate]);
+    
+    // Load tickets only once when component mounts
+    const userTickets = getUserTickets(currentUser.id);
+    setTickets(userTickets);
+  }, [navigate, refresh]); // Add refresh dependency
 
   const handleDownload = async (ticket) => {
     setDownloading(ticket.id);
@@ -57,7 +63,16 @@ const MyTickets = () => {
     return ticket.paymentStatus === 'paid' ? 'Confirmed' : 'Pending Payment';
   };
 
-  if (!user) return null;
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-accent/5 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-4 text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-accent/5 py-8">
@@ -69,10 +84,15 @@ const MyTickets = () => {
               Manage your upcoming and past journeys
             </p>
           </div>
-          <Button onClick={() => navigate('/search')}>
-            <Ticket className="h-4 w-4 mr-2" />
-            Book New Ticket
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setRefresh(!refresh)}>
+              Refresh
+            </Button>
+            <Button onClick={() => navigate('/')}>
+              <Ticket className="h-4 w-4 mr-2" />
+              Book New Ticket
+            </Button>
+          </div>
         </div>
 
         {tickets.length === 0 ? (
@@ -84,7 +104,7 @@ const MyTickets = () => {
             <p className="text-muted-foreground mb-6">
               You haven't booked any train tickets yet.
             </p>
-            <Button onClick={() => navigate('/search')}>
+            <Button onClick={() => navigate('/')}>
               Book Your First Ticket
             </Button>
           </Card>
@@ -140,6 +160,15 @@ const MyTickets = () => {
                       </div>
                     </div>
                     
+                    {ticket.distance && (
+                      <div className="flex items-center gap-2 mb-3">
+                        <Navigation className="h-4 w-4 text-muted-foreground" />
+                        <p className="text-sm text-muted-foreground">
+                          Distance: {ticket.distance} km • Fare: ₹{ticket.calculatedPrice || ticket.price}
+                        </p>
+                      </div>
+                    )}
+                    
                     <div className="flex items-center gap-6 text-sm">
                       <div>
                         <span className="text-muted-foreground">Passenger:</span>
@@ -151,7 +180,7 @@ const MyTickets = () => {
                       </div>
                       <div>
                         <span className="text-muted-foreground">Amount:</span>
-                        <span className="font-medium ml-2">₹{ticket.price}</span>
+                        <span className="font-medium ml-2">₹{ticket.calculatedPrice || ticket.price}</span>
                       </div>
                     </div>
                   </div>

@@ -5,8 +5,8 @@ import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Train, Clock, MapPin, IndianRupee, Calendar as CalendarIcon } from 'lucide-react';
-import { getTrainById, addTicket, getCurrentUser } from '@/lib/storage';
+import { Train, Clock, MapPin, IndianRupee, Calendar as CalendarIcon, Navigation } from 'lucide-react';
+import { getTrainById, addTicket, getCurrentUser, calculateDistance, getStationById } from '@/lib/storage';
 import { generateTicketPDF } from '@/lib/pdfGenerator';
 import { useToast } from '@/hooks/use-toast';
 
@@ -22,6 +22,8 @@ const Booking = () => {
   const [isProcessing, setIsProcessing] = useState(false);
 
   const travelDate = searchParams.get('date') || '';
+  const fromStationId = searchParams.get('from') || '';
+  const toStationId = searchParams.get('to') || '';
   const user = getCurrentUser();
 
   useEffect(() => {
@@ -39,7 +41,16 @@ const Booking = () => {
         title: 'Please select travel date',
         variant: 'destructive',
       });
-      navigate('/search');
+      navigate('/');
+      return;
+    }
+
+    if (!fromStationId || !toStationId) {
+      toast({
+        title: 'Invalid station selection',
+        variant: 'destructive',
+      });
+      navigate('/');
       return;
     }
 
@@ -49,13 +60,35 @@ const Booking = () => {
         title: 'Train not found',
         variant: 'destructive',
       });
-      navigate('/search');
+      navigate('/');
       return;
     }
 
-    setTrain(trainData);
+    // Calculate distance and price
+    const distance = calculateDistance(trainId, fromStationId, toStationId);
+    const calculatedPrice = Math.round(distance * trainData.pricePerKm);
+    const originStation = getStationById(fromStationId);
+    const destinationStation = getStationById(toStationId);
+
+    console.log('Booking details:', {
+      trainData,
+      distance,
+      calculatedPrice,
+      originStation,
+      destinationStation
+    });
+
+    setTrain({
+      ...trainData,
+      distance,
+      calculatedPrice,
+      origin: originStation?.name || 'Unknown Station',
+      destination: destinationStation?.name || 'Unknown Station',
+      originStation,
+      destinationStation,
+    });
     setPassengerName(user.name);
-  }, [trainId, travelDate, user, navigate, toast]);
+  }, [trainId, travelDate, fromStationId, toStationId, user, navigate, toast]);
 
   const handleBooking = async () => {
     if (!passengerName.trim()) {
@@ -66,40 +99,72 @@ const Booking = () => {
       return;
     }
 
+    if (!train) {
+      toast({
+        title: 'Train information not loaded',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setIsProcessing(true);
 
     try {
-      const ticket = addTicket({
+      // Create ticket data
+      const ticketData = {
         trainId: train.id,
         userId: user.id,
         trainName: train.name,
-        route: train.route,
+        route: `${train.origin} to ${train.destination}`,
         origin: train.origin,
         destination: train.destination,
-        departureTime: train.departureTime,
-        arrivalTime: train.arrivalTime,
-        price: train.price,
-        passengerName,
-        travelDate,
-        paymentMethod,
+        departureTime: '08:00 AM',
+        arrivalTime: '04:00 PM',
+        price: train.calculatedPrice,
+        distance: train.distance,
+        calculatedPrice: train.calculatedPrice,
+        passengerName: passengerName.trim(),
+        travelDate: travelDate,
+        paymentMethod: paymentMethod,
         paymentStatus: paymentMethod === 'cash' ? 'pending' : 'paid',
-      });
+      };
+
+      console.log('Creating ticket:', ticketData);
+
+      // Add ticket to storage
+      const ticket = addTicket(ticketData);
+      
+      console.log('Ticket created:', ticket);
 
       toast({
-        title: 'Booking Confirmed!',
+        title: 'Booking Confirmed! 🎉',
         description: 'Your ticket has been booked successfully',
       });
 
-      await generateTicketPDF(ticket);
+      // Generate PDF
+      try {
+        await generateTicketPDF(ticket);
+        console.log('PDF generated successfully');
+      } catch (pdfError) {
+        console.error('PDF generation failed:', pdfError);
+        // Continue even if PDF fails
+        toast({
+          title: 'Ticket booked but PDF download failed',
+          description: 'You can download the ticket from My Tickets page',
+          variant: 'default',
+        });
+      }
       
+      // Navigate to my-tickets after a short delay
       setTimeout(() => {
         navigate('/my-tickets');
       }, 2000);
 
     } catch (error) {
+      console.error('Booking error:', error);
       toast({
         title: 'Booking failed',
-        description: 'Please try again',
+        description: 'Please try again. Error: ' + error.message,
         variant: 'destructive',
       });
     } finally {
@@ -133,7 +198,7 @@ const Booking = () => {
                 </div>
                 <div className="flex-1">
                   <h3 className="text-lg font-bold text-primary">{train.name}</h3>
-                  <p className="text-sm text-muted-foreground">{train.route}</p>
+                  <p className="text-sm text-muted-foreground">{train.origin} → {train.destination}</p>
                   <div className="grid md:grid-cols-3 gap-4 mt-4">
                     <div className="flex items-center gap-2">
                       <MapPin className="h-4 w-4 text-muted-foreground" />
@@ -145,7 +210,7 @@ const Booking = () => {
                     <div className="flex items-center gap-2">
                       <Clock className="h-4 w-4 text-muted-foreground" />
                       <div>
-                        <p className="text-sm font-medium">{train.departureTime}</p>
+                        <p className="text-sm font-medium">08:00 AM</p>
                         <p className="text-xs text-muted-foreground">Time</p>
                       </div>
                     </div>
@@ -157,6 +222,12 @@ const Booking = () => {
                       </div>
                     </div>
                   </div>
+                  <div className="flex items-center gap-2 mt-3">
+                    <Navigation className="h-4 w-4 text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground">
+                      Distance: {train.distance} km • ₹{train.pricePerKm}/km
+                    </p>
+                  </div>
                 </div>
               </div>
             </Card>
@@ -165,12 +236,13 @@ const Booking = () => {
               <h2 className="text-xl font-bold mb-4">Passenger Information</h2>
               <div className="space-y-4">
                 <div>
-                  <Label htmlFor="passengerName">Full Name</Label>
+                  <Label htmlFor="passengerName">Full Name *</Label>
                   <Input
                     id="passengerName"
                     value={passengerName}
                     onChange={(e) => setPassengerName(e.target.value)}
                     placeholder="Enter passenger name"
+                    className="mt-1"
                   />
                 </div>
               </div>
@@ -181,15 +253,15 @@ const Booking = () => {
               <RadioGroup value={paymentMethod} onValueChange={setPaymentMethod}>
                 <div className="flex items-center space-x-2 mb-2">
                   <RadioGroupItem value="cash" id="cash" />
-                  <Label htmlFor="cash">Cash on Boarding</Label>
+                  <Label htmlFor="cash" className="font-normal">Cash on Boarding</Label>
                 </div>
                 <p className="text-sm text-muted-foreground ml-6 mb-4">
                   Pay for your ticket when you board the train
                 </p>
                 
                 <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="online" id="online" />
-                  <Label htmlFor="online">Online Payment</Label>
+                  <RadioGroupItem value="online" id="online" disabled />
+                  <Label htmlFor="online" className="font-normal text-muted-foreground">Online Payment</Label>
                 </div>
                 <p className="text-sm text-muted-foreground ml-6">
                   Pay securely online (Coming Soon)
@@ -204,8 +276,8 @@ const Booking = () => {
               
               <div className="space-y-3 mb-6">
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Ticket Price</span>
-                  <span className="font-medium">₹{train.price}</span>
+                  <span className="text-muted-foreground">Base Fare</span>
+                  <span className="font-medium">₹{train.calculatedPrice}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Service Fee</span>
@@ -213,7 +285,10 @@ const Booking = () => {
                 </div>
                 <div className="flex justify-between text-lg font-bold border-t pt-3">
                   <span>Total Amount</span>
-                  <span className="text-primary">₹{train.price}</span>
+                  <span className="text-primary">₹{train.calculatedPrice}</span>
+                </div>
+                <div className="text-xs text-muted-foreground text-center">
+                  {train.distance} km × ₹{train.pricePerKm}/km
                 </div>
               </div>
 
@@ -221,7 +296,7 @@ const Booking = () => {
                 className="w-full" 
                 size="lg"
                 onClick={handleBooking}
-                disabled={isProcessing}
+                disabled={isProcessing || !passengerName.trim()}
               >
                 {isProcessing ? (
                   <>

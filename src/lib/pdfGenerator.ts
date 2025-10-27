@@ -46,7 +46,8 @@ export const generateTicketPDF = async (ticket) => {
   
   pdf.setFontSize(12);
   pdf.setFont('helvetica', 'normal');
-  pdf.text(`Route: ${ticket.route}`, 20, 85);
+  pdf.text(`Route: ${ticket.route}`, 20, 83);
+  pdf.text(`Distance : ${ticket.distance} km`, 20, 91);
   
   // Journey details box
   pdf.setDrawColor(primaryColor[0], primaryColor[1], primaryColor[2]);
@@ -65,10 +66,7 @@ export const generateTicketPDF = async (ticket) => {
   pdf.setFontSize(10);
   pdf.text(ticket.departureTime, 30, 122);
   
-  // Arrow
-  pdf.setFontSize(20);
-  pdf.text('→', 95, 115);
-  
+
   // Destination
   pdf.setFontSize(10);
   pdf.setTextColor(100, 100, 100);

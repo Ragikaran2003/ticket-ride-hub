@@ -4,21 +4,25 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Train, Clock, MapPin, ArrowRight, IndianRupee, Navigation } from 'lucide-react';
-import { searchTrains } from '@/lib/storage';
+import { searchTrains, getStations, calculateDistance, getStationById } from '@/lib/storage';
 
 const SearchResults = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [trains, setTrains] = useState([]);
+  const [stations, setStations] = useState([]);
 
   const origin = searchParams.get('origin') || '';
   const destination = searchParams.get('destination') || '';
   const date = searchParams.get('date') || '';
+  const fromStationId = searchParams.get('from') || '';
+  const toStationId = searchParams.get('to') || '';
 
   useEffect(() => {
-    const results = searchTrains(origin, destination, date);
+    const results = searchTrains(fromStationId, toStationId, date);
     setTrains(results);
-  }, [origin, destination, date]);
+    setStations(getStations());
+  }, [fromStationId, toStationId, date]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-accent/5">
@@ -67,7 +71,7 @@ const SearchResults = () => {
             <Train className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
             <h3 className="text-2xl font-semibold mb-2">No trains found</h3>
             <p className="text-muted-foreground mb-6">
-              Try searching with different cities or dates
+              Try searching with different stations or dates
             </p>
             <Button onClick={() => navigate('/')}>
               Back to Search
@@ -78,62 +82,68 @@ const SearchResults = () => {
             <h2 className="text-2xl font-bold mb-4">
               Available Trains ({trains.length})
             </h2>
-            {trains.map((train) => (
-              <Card key={train.id} className="p-6 hover:shadow-lg transition-shadow">
-                <div className="flex items-center justify-between gap-6 flex-wrap">
-                  <div className="flex-1 min-w-[200px]">
-                    <h3 className="text-xl font-bold text-primary mb-1">{train.name}</h3>
-                    <p className="text-sm text-muted-foreground">{train.route}</p>
-                    
-                    {/* Distance Information */}
-                    <div className="flex items-center gap-2 mt-2 text-sm text-muted-foreground">
-                      <Navigation className="h-4 w-4" />
-                      <span>{train.distance} km • Rs. {train.price} total fare</span>
-                    </div>
-                  </div>
+            {trains.map((train) => {
+              const distance = calculateDistance(train.id, fromStationId, toStationId);
+              const price = distance * train.pricePerKm;
+              const originStation = getStationById(fromStationId);
+              const destinationStation = getStationById(toStationId);
 
-                  <div className="flex items-center gap-8">
-                    <div className="text-center">
-                      <div className="flex items-center gap-2 mb-1">
-                        <Clock className="h-4 w-4 text-muted-foreground" />
-                        <p className="text-lg font-semibold">{train.departureTime}</p>
+              return (
+                <Card key={train.id} className="p-6 hover:shadow-lg transition-shadow">
+                  <div className="flex items-center justify-between gap-6 flex-wrap">
+                    <div className="flex-1 min-w-[200px]">
+                      <h3 className="text-xl font-bold text-primary mb-1">{train.name}</h3>
+                      
+                      {/* Route Information */}
+                      <div className="flex items-center gap-2 mt-2 text-sm text-muted-foreground">
+                        <Navigation className="h-4 w-4" />
+                        <span>{distance} km • ₹{price.toFixed(2)} total fare</span>
                       </div>
-                      <p className="text-sm text-muted-foreground">{train.origin}</p>
                     </div>
 
-                    <ArrowRight className="h-6 w-6 text-primary" />
-
-                    <div className="text-center">
-                      <div className="flex items-center gap-2 mb-1">
-                        <Clock className="h-4 w-4 text-muted-foreground" />
-                        <p className="text-lg font-semibold">{train.arrivalTime}</p>
+                    <div className="flex items-center gap-8">
+                      <div className="text-center">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Clock className="h-4 w-4 text-muted-foreground" />
+                          <p className="text-lg font-semibold">08:00</p>
+                        </div>
+                        <p className="text-sm text-muted-foreground">{originStation?.name}</p>
                       </div>
-                      <p className="text-sm text-muted-foreground">{train.destination}</p>
-                    </div>
-                  </div>
 
-                  <div className="text-right">
-                    <div className="flex items-center gap-1 mb-2">
-                      <IndianRupee className="h-5 w-5" />
-                      <p className="text-2xl font-bold text-primary">{train.price}</p>
+                      <ArrowRight className="h-6 w-6 text-primary" />
+
+                      <div className="text-center">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Clock className="h-4 w-4 text-muted-foreground" />
+                          <p className="text-lg font-semibold">16:00</p>
+                        </div>
+                        <p className="text-sm text-muted-foreground">{destinationStation?.name}</p>
+                      </div>
                     </div>
-                    <p className="text-sm text-muted-foreground mb-1">
-                      {train.availableSeats} seats available
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      Rs. {(train.price / train.distance).toFixed(2)}/km
-                    </p>
-                    <Button
-                      onClick={() => navigate(`/book/${train.id}?date=${date}`)}
-                      disabled={train.availableSeats === 0}
-                      className="mt-2"
-                    >
-                      Book Now
-                    </Button>
+
+                    <div className="text-right">
+                      <div className="flex items-center gap-1 mb-2">
+                        <IndianRupee className="h-5 w-5" />
+                        <p className="text-2xl font-bold text-primary">{price.toFixed(2)}</p>
+                      </div>
+                      <p className="text-sm text-muted-foreground mb-1">
+                        {train.availableSeats} seats available
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        ₹{train.pricePerKm}/km
+                      </p>
+                      <Button
+                        onClick={() => navigate(`/book/${train.id}?date=${date}&from=${fromStationId}&to=${toStationId}`)}
+                        disabled={train.availableSeats === 0}
+                        className="mt-2"
+                      >
+                        Book Now
+                      </Button>
+                    </div>
                   </div>
-                </div>
-              </Card>
-            ))}
+                </Card>
+              );
+            })}
           </div>
         )}
       </main>

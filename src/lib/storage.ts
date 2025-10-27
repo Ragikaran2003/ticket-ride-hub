@@ -7,47 +7,69 @@ const STORAGE_KEYS = {
   ADMINS: 'ticket_ride_admins',
   CURRENT_USER: 'ticket_ride_current_user',
   CURRENT_ADMIN: 'ticket_ride_current_admin',
+  STATIONS: 'ticket_ride_stations',
+  ROUTES: 'ticket_ride_routes',
 };
 
 // Initialize with sample data
 export const initializeData = () => {
+  if (!localStorage.getItem(STORAGE_KEYS.STATIONS)) {
+    const sampleStations = [
+      { id: '1', name: 'Mumbai Central', code: 'MMCT' },
+      { id: '2', name: 'Delhi Junction', code: 'DLI' },
+      { id: '3', name: 'Chennai Central', code: 'MAS' },
+      { id: '4', name: 'Kolkata Howrah', code: 'HWH' },
+      { id: '5', name: 'Bangalore City', code: 'SBC' },
+      { id: '6', name: 'Hyderabad Deccan', code: 'HYB' },
+      { id: '7', name: 'Ahmedabad Junction', code: 'ADI' },
+      { id: '8', name: 'Pune Junction', code: 'PUNE' },
+    ];
+    localStorage.setItem(STORAGE_KEYS.STATIONS, JSON.stringify(sampleStations));
+  }
+
+  if (!localStorage.getItem(STORAGE_KEYS.ROUTES)) {
+    localStorage.setItem(STORAGE_KEYS.ROUTES, JSON.stringify([]));
+  }
+
   if (!localStorage.getItem(STORAGE_KEYS.TRAINS)) {
     const sampleTrains = [
       {
         id: '1',
         name: 'Express 101',
-        route: 'Mumbai-Delhi',
-        origin: 'Mumbai',
-        destination: 'Delhi',
-        departureTime: '08:00',
-        arrivalTime: '16:30',
-        price: 1200,
+        pricePerKm: 2.5,
         availableSeats: 50,
       },
       {
         id: '2',
         name: 'Rajdhani Express',
-        route: 'Delhi-Kolkata',
-        origin: 'Delhi',
-        destination: 'Kolkata',
-        departureTime: '16:55',
-        arrivalTime: '10:05',
-        price: 2100,
+        pricePerKm: 4.0,
         availableSeats: 40,
       },
       {
         id: '3',
         name: 'Shatabdi Express',
-        route: 'Chennai-Bangalore',
-        origin: 'Chennai',
-        destination: 'Bangalore',
-        departureTime: '06:00',
-        arrivalTime: '11:00',
-        price: 800,
+        pricePerKm: 3.0,
         availableSeats: 60,
       },
     ];
     localStorage.setItem(STORAGE_KEYS.TRAINS, JSON.stringify(sampleTrains));
+
+    // Add sample routes
+    const sampleRoutes = [
+      // Express 101 routes
+      { trainId: '1', stationId: '1', sequence: 0, distanceToNext: 500 }, // Mumbai to Delhi
+      { trainId: '1', stationId: '2', sequence: 1, distanceToNext: 0 }, // Delhi (terminal)
+      
+      // Rajdhani Express routes
+      { trainId: '2', stationId: '2', sequence: 0, distanceToNext: 800 }, // Delhi to Kolkata
+      { trainId: '2', stationId: '4', sequence: 1, distanceToNext: 0 }, // Kolkata (terminal)
+      
+      // Shatabdi Express routes
+      { trainId: '3', stationId: '3', sequence: 0, distanceToNext: 350 }, // Chennai to Bangalore
+      { trainId: '3', stationId: '5', sequence: 1, distanceToNext: 0 }, // Bangalore (terminal)
+    ].map(route => ({ ...route, id: Date.now().toString() + Math.random() }));
+
+    localStorage.setItem(STORAGE_KEYS.ROUTES, JSON.stringify(sampleRoutes));
   }
 
   if (!localStorage.getItem(STORAGE_KEYS.ADMINS)) {
@@ -67,6 +89,101 @@ export const initializeData = () => {
   if (!localStorage.getItem(STORAGE_KEYS.USERS)) {
     localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify([]));
   }
+};
+
+// Station operations
+export const getStations = () => {
+  const stations = localStorage.getItem(STORAGE_KEYS.STATIONS);
+  return stations ? JSON.parse(stations) : [];
+};
+
+export const addStation = (station) => {
+  const stations = getStations();
+  const newStation = {
+    ...station,
+    id: Date.now().toString(),
+  };
+  stations.push(newStation);
+  localStorage.setItem(STORAGE_KEYS.STATIONS, JSON.stringify(stations));
+  return newStation;
+};
+
+export const updateStation = (id, updates) => {
+  const stations = getStations();
+  const index = stations.findIndex(s => s.id === id);
+  if (index === -1) return null;
+  
+  stations[index] = { ...stations[index], ...updates };
+  localStorage.setItem(STORAGE_KEYS.STATIONS, JSON.stringify(stations));
+  return stations[index];
+};
+
+export const deleteStation = (id) => {
+  const stations = getStations();
+  const filtered = stations.filter(s => s.id !== id);
+  if (filtered.length === stations.length) return false;
+  
+  localStorage.setItem(STORAGE_KEYS.STATIONS, JSON.stringify(filtered));
+  return true;
+};
+
+export const getStationById = (id) => {
+  const stations = getStations();
+  return stations.find(s => s.id === id) || null;
+};
+
+// Route operations
+export const getRoutes = () => {
+  const routes = localStorage.getItem(STORAGE_KEYS.ROUTES);
+  return routes ? JSON.parse(routes) : [];
+};
+
+export const addRoute = (route) => {
+  const routes = getRoutes();
+  const newRoute = {
+    ...route,
+    id: Date.now().toString(),
+  };
+  routes.push(newRoute);
+  localStorage.setItem(STORAGE_KEYS.ROUTES, JSON.stringify(routes));
+  return newRoute;
+};
+
+export const deleteRoute = (id) => {
+  const routes = getRoutes();
+  const filtered = routes.filter(r => r.id !== id);
+  if (filtered.length === routes.length) return false;
+  
+  localStorage.setItem(STORAGE_KEYS.ROUTES, JSON.stringify(filtered));
+  return true;
+};
+
+export const getRoutesByTrain = (trainId) => {
+  const routes = getRoutes();
+  return routes.filter(r => r.trainId === trainId).sort((a, b) => a.sequence - b.sequence);
+};
+
+export const getRouteSegment = (trainId, fromStationId, toStationId) => {
+  const routes = getRoutesByTrain(trainId);
+  const fromIndex = routes.findIndex(r => r.stationId === fromStationId);
+  const toIndex = routes.findIndex(r => r.stationId === toStationId);
+  
+  if (fromIndex === -1 || toIndex === -1 || fromIndex >= toIndex) {
+    return null;
+  }
+  
+  return routes.slice(fromIndex, toIndex + 1);
+};
+
+export const calculateDistance = (trainId, fromStationId, toStationId) => {
+  const segment = getRouteSegment(trainId, fromStationId, toStationId);
+  if (!segment || segment.length < 2) return 0;
+  
+  let totalDistance = 0;
+  for (let i = 0; i < segment.length - 1; i++) {
+    totalDistance += segment[i].distanceToNext || 0;
+  }
+  return totalDistance;
 };
 
 // Train operations
@@ -105,13 +222,16 @@ export const deleteTrain = (id) => {
   return true;
 };
 
-export const searchTrains = (origin, destination, date) => {
+export const searchTrains = (originStationId, destinationStationId, date) => {
   const trains = getTrains();
-  return trains.filter(
-    t => t.origin.toLowerCase().includes(origin.toLowerCase()) &&
-         t.destination.toLowerCase().includes(destination.toLowerCase()) &&
-         t.availableSeats > 0
-  );
+  
+  return trains.filter(train => {
+    const routes = getRoutesByTrain(train.id);
+    const originIndex = routes.findIndex(r => r.stationId === originStationId);
+    const destinationIndex = routes.findIndex(r => r.stationId === destinationStationId);
+    
+    return originIndex !== -1 && destinationIndex !== -1 && originIndex < destinationIndex;
+  });
 };
 
 export const getTrainById = (id) => {
@@ -136,6 +256,7 @@ export const addTicket = (ticket) => {
     bookingCode,
     qrCode: bookingCode,
     createdAt: new Date().toISOString(),
+    paymentStatus: ticket.paymentStatus || 'pending',
   };
   tickets.push(newTicket);
   localStorage.setItem(STORAGE_KEYS.TICKETS, JSON.stringify(tickets));
@@ -160,6 +281,31 @@ export const getUserTickets = (userId) => {
 };
 
 export const getAllTickets = getTickets;
+
+// Add these new functions for ticket updates
+export const updateTicketPaymentStatus = (ticketId, paymentStatus) => {
+  const tickets = getTickets();
+  const index = tickets.findIndex(t => t.id === ticketId);
+  if (index === -1) return null;
+  
+  tickets[index] = { 
+    ...tickets[index], 
+    paymentStatus,
+    updatedAt: new Date().toISOString()
+  };
+  localStorage.setItem(STORAGE_KEYS.TICKETS, JSON.stringify(tickets));
+  return tickets[index];
+};
+
+export const updateTicket = (id, updates) => {
+  const tickets = getTickets();
+  const index = tickets.findIndex(t => t.id === id);
+  if (index === -1) return null;
+  
+  tickets[index] = { ...tickets[index], ...updates };
+  localStorage.setItem(STORAGE_KEYS.TICKETS, JSON.stringify(tickets));
+  return tickets[index];
+};
 
 // User operations
 export const getCurrentUser = () => {

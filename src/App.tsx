@@ -34,7 +34,8 @@ function App() {
           } />
           
           {/* Protected User Routes */}
-          <Route path="/booking/:trainId" element={
+          {/* FIX: Changed from "/booking/:trainId" to "/book/:trainId" */}
+          <Route path="/book/:trainId" element={
             <>
               <Navbar />
               <Booking />

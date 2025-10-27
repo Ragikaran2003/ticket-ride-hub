@@ -1,16 +1,86 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar, Train, MapPin, Search, Clock, Shield, Ticket, Users } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { searchTrains } from '@/lib/storage';
+import { getStations } from '@/lib/storage';
 import { useToast } from '@/hooks/use-toast';
+
+// Custom Select with Search Component
+const StationSelect = ({ value, onValueChange, placeholder, stations }) => {
+  const [open, setOpen] = useState(false);
+  const [searchValue, setSearchValue] = useState('');
+
+  const filteredStations = stations.filter(station =>
+    station.name.toLowerCase().includes(searchValue.toLowerCase()) ||
+    station.code.toLowerCase().includes(searchValue.toLowerCase())
+  );
+
+  const selectedStation = stations.find(station => station.id === value);
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          role="combobox"
+          aria-expanded={open}
+          className="w-full justify-between"
+        >
+          {selectedStation ? (
+            <span>{selectedStation.name} ({selectedStation.code})</span>
+          ) : (
+            <span className="text-muted-foreground">{placeholder}</span>
+          )}
+          <MapPin className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-full p-0">
+        <div className="p-2">
+          <input
+            type="text"
+            placeholder="Search station..."
+            className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+            value={searchValue}
+            onChange={(e) => setSearchValue(e.target.value)}
+          />
+        </div>
+        <div className="max-h-60 overflow-auto">
+          {filteredStations.length === 0 ? (
+            <div className="py-6 text-center text-sm text-muted-foreground">
+              No station found.
+            </div>
+          ) : (
+            filteredStations.map((station) => (
+              <button
+                key={station.id}
+                className={cn(
+                  "flex w-full items-center px-4 py-2 text-sm hover:bg-accent hover:text-accent-foreground",
+                  value === station.id && "bg-accent text-accent-foreground"
+                )}
+                onClick={() => {
+                  onValueChange(station.id);
+                  setOpen(false);
+                  setSearchValue('');
+                }}
+              >
+                <div className="flex flex-col items-start">
+                  <span>{station.name}</span>
+                  <span className="text-xs text-muted-foreground">{station.code}</span>
+                </div>
+              </button>
+            ))
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+};
 
 const Home = () => {
   const navigate = useNavigate();
@@ -19,11 +89,16 @@ const Home = () => {
   const [destination, setDestination] = useState('');
   const [date, setDate] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [stations, setStations] = useState([]);
+
+  useEffect(() => {
+    setStations(getStations());
+  }, []);
 
   const handleSearch = async () => {
-    if (!origin.trim() || !destination.trim()) {
+    if (!origin || !destination) {
       toast({
-        title: 'Please enter origin and destination',
+        title: 'Please select origin and destination stations',
         variant: 'destructive',
       });
       return;
@@ -37,21 +112,21 @@ const Home = () => {
       return;
     }
 
+    if (origin === destination) {
+      toast({
+        title: 'Origin and destination cannot be the same',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setIsLoading(true);
     
     try {
-      const trains = searchTrains(origin, destination, date);
+      const originStation = stations.find(s => s.id === origin);
+      const destinationStation = stations.find(s => s.id === destination);
       
-      if (trains.length === 0) {
-        toast({
-          title: 'No trains found',
-          description: 'Please try different stations or date',
-          variant: 'destructive',
-        });
-        return;
-      }
-
-      navigate(`/search?origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}&date=${format(date, 'yyyy-MM-dd')}`);
+      navigate(`/search?origin=${encodeURIComponent(originStation.name)}&destination=${encodeURIComponent(destinationStation.name)}&date=${format(date, 'yyyy-MM-dd')}&from=${origin}&to=${destination}`);
     } catch (error) {
       toast({
         title: 'Search failed',
@@ -106,30 +181,22 @@ const Home = () => {
             <div className="grid md:grid-cols-4 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="origin">From</Label>
-                <div className="relative">
-                  <MapPin className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    id="origin"
-                    placeholder="Origin station"
-                    value={origin}
-                    onChange={(e) => setOrigin(e.target.value)}
-                    className="pl-10"
-                  />
-                </div>
+                <StationSelect
+                  value={origin}
+                  onValueChange={setOrigin}
+                  placeholder="Select origin"
+                  stations={stations}
+                />
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="destination">To</Label>
-                <div className="relative">
-                  <MapPin className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    id="destination"
-                    placeholder="Destination station"
-                    value={destination}
-                    onChange={(e) => setDestination(e.target.value)}
-                    className="pl-10"
-                  />
-                </div>
+                <StationSelect
+                  value={destination}
+                  onValueChange={setDestination}
+                  placeholder="Select destination"
+                  stations={stations}
+                />
               </div>
 
               <div className="space-y-2">
