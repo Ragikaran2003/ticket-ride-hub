@@ -23,7 +23,6 @@ export const initializeData = () => {
         arrivalTime: '16:30',
         price: 1200,
         availableSeats: 50,
-        distance: 1400,
       },
       {
         id: '2',
@@ -35,7 +34,6 @@ export const initializeData = () => {
         arrivalTime: '10:05',
         price: 2100,
         availableSeats: 40,
-        distance: 1300,
       },
       {
         id: '3',
@@ -47,7 +45,6 @@ export const initializeData = () => {
         arrivalTime: '11:00',
         price: 800,
         availableSeats: 60,
-        distance: 350,
       },
     ];
     localStorage.setItem(STORAGE_KEYS.TRAINS, JSON.stringify(sampleTrains));
@@ -58,7 +55,7 @@ export const initializeData = () => {
       id: '1',
       name: 'Admin',
       email: 'admin@ticketride.com',
-      password: 'admin123',
+      password: 'admin123', // In production, this would be hashed
     };
     localStorage.setItem(STORAGE_KEYS.ADMINS, JSON.stringify([defaultAdmin]));
   }
@@ -184,7 +181,7 @@ export const registerUser = (name, email, password) => {
     id: Date.now().toString(),
     name,
     email,
-    password,
+    password, // In production, this would be hashed
   };
   users.push(newUser);
   localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));

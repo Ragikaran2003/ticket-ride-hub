@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from '@/components/ui/dialog';
 import { Train, Shield, LogOut, Plus, Edit2, Trash2, Search, Ticket } from 'lucide-react';
 import { 
   getCurrentAdmin, 
@@ -28,6 +28,7 @@ const AdminDashboard = () => {
   const [verifiedTicket, setVerifiedTicket] = useState(null);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [editingTrain, setEditingTrain] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
   
   const [formData, setFormData] = useState({
     name: '',
@@ -40,23 +41,22 @@ const AdminDashboard = () => {
     availableSeats: '',
   });
 
-  const admin = getCurrentAdmin();
-
+  // Check admin on component mount only
   useEffect(() => {
+    const admin = getCurrentAdmin();
     if (!admin) {
       navigate('/admin');
       return;
     }
-    loadData();
-  }, [admin, navigate]);
-
-  const loadData = () => {
+    
+    // Load data after confirming admin exists
     setTrains(getAllTrains());
     setTickets(getAllTickets());
-  };
+    setIsLoading(false);
+  }, []); // Empty dependency array - runs only once
 
   const handleLogout = () => {
-    localStorage.removeItem('currentAdmin');
+    localStorage.removeItem('ticket_ride_current_admin');
     navigate('/admin');
   };
 
@@ -97,7 +97,9 @@ const AdminDashboard = () => {
       toast({ title: 'Train added successfully' });
     }
 
-    loadData();
+    // Update state directly
+    setTrains(getAllTrains());
+    setTickets(getAllTickets());
     setIsAddDialogOpen(false);
     resetForm();
   };
@@ -121,7 +123,9 @@ const AdminDashboard = () => {
     if (confirm('Are you sure you want to delete this train?')) {
       deleteTrain(id);
       toast({ title: 'Train deleted' });
-      loadData();
+      // Update state directly
+      setTrains(getAllTrains());
+      setTickets(getAllTickets());
     }
   };
 
@@ -143,7 +147,24 @@ const AdminDashboard = () => {
     }
   };
 
-  if (!admin) return null;
+  const admin = getCurrentAdmin();
+
+  // Show loading while checking admin
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-accent/5 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-4 text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // If no admin after loading, show nothing (will redirect)
+  if (!admin) {
+    return null;
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-accent/5">
@@ -184,6 +205,12 @@ const AdminDashboard = () => {
                 <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                   <DialogHeader>
                     <DialogTitle>{editingTrain ? 'Edit Train' : 'Add New Train'}</DialogTitle>
+                    <DialogDescription>
+                      {editingTrain 
+                        ? 'Update the train details below.' 
+                        : 'Fill in the details to add a new train to the system.'
+                      }
+                    </DialogDescription>
                   </DialogHeader>
                   <div className="grid md:grid-cols-2 gap-4">
                     <div>

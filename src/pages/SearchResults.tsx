@@ -124,7 +124,7 @@ const SearchResults = () => {
                       Rs. {(train.price / train.distance).toFixed(2)}/km
                     </p>
                     <Button
-                      onClick={() => navigate(`/booking/${train.id}?date=${date}`)}
+                      onClick={() => navigate(`/book/${train.id}?date=${date}`)}
                       disabled={train.availableSeats === 0}
                       className="mt-2"
                     >
