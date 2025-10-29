@@ -20,6 +20,8 @@ const Booking = () => {
   const [passengerName, setPassengerName] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [hasLoaded, setHasLoaded] = useState(false); // Add this to prevent reloads
 
   const travelDate = searchParams.get('date') || '';
   const fromStationId = searchParams.get('from') || '';
@@ -27,157 +29,214 @@ const Booking = () => {
   const user = getCurrentUser();
 
   useEffect(() => {
-    if (!user) {
-      toast({
-        title: 'Please login first',
-        variant: 'destructive',
-      });
-      navigate('/login');
-      return;
-    }
+    // Prevent multiple loads
+    if (hasLoaded) return;
 
-    if (!travelDate) {
-      toast({
-        title: 'Please select travel date',
-        variant: 'destructive',
-      });
-      navigate('/');
-      return;
-    }
+    const loadBookingData = async () => {
+      if (!user) {
+        toast({
+          title: 'Please login first',
+          variant: 'destructive',
+        });
+        navigate('/login');
+        return;
+      }
 
-    if (!fromStationId || !toStationId) {
-      toast({
-        title: 'Invalid station selection',
-        variant: 'destructive',
-      });
-      navigate('/');
-      return;
-    }
+      if (!travelDate) {
+        toast({
+          title: 'Please select travel date',
+          variant: 'destructive',
+        });
+        navigate('/');
+        return;
+      }
 
-    const trainData = getTrainById(trainId);
-    if (!trainData) {
-      toast({
-        title: 'Train not found',
-        variant: 'destructive',
-      });
-      navigate('/');
-      return;
-    }
+      if (!fromStationId || !toStationId) {
+        toast({
+          title: 'Invalid station selection',
+          variant: 'destructive',
+        });
+        navigate('/');
+        return;
+      }
 
-    // Calculate distance and price
-    const distance = calculateDistance(trainId, fromStationId, toStationId);
-    const calculatedPrice = Math.round(distance * trainData.pricePerKm);
-    const originStation = getStationById(fromStationId);
-    const destinationStation = getStationById(toStationId);
+      try {
+        setIsLoading(true);
+        console.log('🔄 Loading booking data...');
+        
+        // Get train data
+        const trainData = await getTrainById(trainId);
+        if (!trainData) {
+          toast({
+            title: 'Train not found',
+            variant: 'destructive',
+          });
+          navigate('/');
+          return;
+        }
 
-    console.log('Booking details:', {
-      trainData,
-      distance,
-      calculatedPrice,
-      originStation,
-      destinationStation
+        // Calculate distance and price
+        const distance = await calculateDistance(trainId, fromStationId, toStationId);
+        const calculatedPrice = Math.round(distance * trainData.price_per_km);
+        
+        // Get station names
+        let originStation, destinationStation;
+        try {
+          originStation = await getStationById(fromStationId);
+          destinationStation = await getStationById(toStationId);
+        } catch (error) {
+          console.error('Error loading stations:', error);
+          originStation = { name: 'Origin Station' };
+          destinationStation = { name: 'Destination Station' };
+        }
+
+        console.log('✅ Booking details loaded:', {
+          trainData,
+          distance,
+          calculatedPrice,
+          originStation,
+          destinationStation
+        });
+
+        setTrain({
+          ...trainData,
+          distance,
+          calculatedPrice,
+          origin: originStation?.name || 'Origin Station',
+          destination: destinationStation?.name || 'Destination Station',
+          price_per_km: trainData.price_per_km,
+        });
+        setPassengerName(user.name);
+        setHasLoaded(true); // Mark as loaded to prevent reloads
+      } catch (error) {
+        console.error('❌ Error loading booking data:', error);
+        toast({
+          title: 'Failed to load booking details',
+          description: 'Please try again',
+          variant: 'destructive',
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadBookingData();
+  }, [trainId, travelDate, fromStationId, toStationId, user, navigate, toast, hasLoaded]); // Add hasLoaded to dependencies
+
+const handleBooking = async () => {
+  if (!passengerName.trim()) {
+    toast({
+      title: 'Please enter passenger name',
+      variant: 'destructive',
+    });
+    return;
+  }
+
+  if (!train) {
+    toast({
+      title: 'Train information not loaded',
+      variant: 'destructive',
+    });
+    return;
+  }
+
+  setIsProcessing(true);
+
+  try {
+    // Create ticket data
+    const ticketData = {
+      trainId: train.id,
+      passengerName: passengerName.trim(),
+      originStationId: fromStationId,
+      destinationStationId: toStationId,
+      travelDate: travelDate,
+      paymentMethod: paymentMethod,
+    };
+
+    console.log('🎫 Creating ticket with data:', ticketData);
+
+    // Add ticket to storage
+    console.log('📤 Calling addTicket API...');
+    const result = await addTicket(ticketData);
+    const ticket = result.ticket || result;
+    
+    console.log('✅ Ticket created successfully:', ticket);
+
+    toast({
+      title: 'Booking Confirmed! 🎉',
+      description: 'Your ticket has been booked successfully',
     });
 
-    setTrain({
-      ...trainData,
-      distance,
-      calculatedPrice,
-      origin: originStation?.name || 'Unknown Station',
-      destination: destinationStation?.name || 'Unknown Station',
-      originStation,
-      destinationStation,
-    });
-    setPassengerName(user.name);
-  }, [trainId, travelDate, fromStationId, toStationId, user, navigate, toast]);
-
-  const handleBooking = async () => {
-    if (!passengerName.trim()) {
-      toast({
-        title: 'Please enter passenger name',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    if (!train) {
-      toast({
-        title: 'Train information not loaded',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    setIsProcessing(true);
-
+    // Generate PDF with enhanced error handling
     try {
-      // Create ticket data
-      const ticketData = {
-        trainId: train.id,
-        userId: user.id,
-        trainName: train.name,
-        route: `${train.origin} to ${train.destination}`,
+      console.log('🔄 Generating PDF...');
+      
+      // Ensure ticket has all required fields for PDF
+      const pdfTicketData = {
+        ...ticket,
+        train_name: train.name,
         origin: train.origin,
         destination: train.destination,
-        departureTime: '08:00 AM',
-        arrivalTime: '04:00 PM',
-        price: train.calculatedPrice,
         distance: train.distance,
-        calculatedPrice: train.calculatedPrice,
-        passengerName: passengerName.trim(),
-        travelDate: travelDate,
-        paymentMethod: paymentMethod,
-        paymentStatus: paymentMethod === 'cash' ? 'pending' : 'paid',
+        price: train.calculatedPrice,
+        departure_time: '08:00 AM',
+        arrival_time: '04:00 PM',
+        travel_date: travelDate,
+        passenger_name: passengerName.trim(),
+        payment_method: paymentMethod,
+        payment_status: paymentMethod === 'cash' ? 'pending' : 'paid'
       };
-
-      console.log('Creating ticket:', ticketData);
-
-      // Add ticket to storage
-      const ticket = addTicket(ticketData);
       
-      console.log('Ticket created:', ticket);
-
-      toast({
-        title: 'Booking Confirmed! 🎉',
-        description: 'Your ticket has been booked successfully',
-      });
-
-      // Generate PDF
-      try {
-        await generateTicketPDF(ticket);
-        console.log('PDF generated successfully');
-      } catch (pdfError) {
-        console.error('PDF generation failed:', pdfError);
-        // Continue even if PDF fails
-        toast({
-          title: 'Ticket booked but PDF download failed',
-          description: 'You can download the ticket from My Tickets page',
-          variant: 'default',
-        });
-      }
+      await generateTicketPDF(pdfTicketData);
+      console.log('📄 PDF generated successfully');
       
-      // Navigate to my-tickets after a short delay
-      setTimeout(() => {
-        navigate('/my-tickets');
-      }, 2000);
-
-    } catch (error) {
-      console.error('Booking error:', error);
+    } catch (pdfError) {
+      console.error('PDF generation failed:', pdfError);
+      
+      // Don't fail the entire booking if PDF fails
       toast({
-        title: 'Booking failed',
-        description: 'Please try again. Error: ' + error.message,
-        variant: 'destructive',
+        title: 'Ticket booked! 📝',
+        description: 'PDF download failed, but you can view your ticket in My Tickets',
+        variant: 'default',
       });
-    } finally {
-      setIsProcessing(false);
     }
-  };
+    
+    // Navigate to my-tickets after a short delay
+    setTimeout(() => {
+      navigate('/my-tickets');
+    }, 2000);
+
+  } catch (error) {
+    console.error('❌ Booking error details:', error);
+    toast({
+      title: 'Booking failed',
+      description: error.response?.data?.error || error.message || 'Please try again',
+      variant: 'destructive',
+    });
+  } finally {
+    setIsProcessing(false);
+  }
+};
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-accent/5 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-4 text-muted-foreground">Loading booking details...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!train) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-accent/5 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-          <p className="mt-4 text-muted-foreground">Loading train details...</p>
+          <p className="text-muted-foreground">Failed to load train details</p>
+          <Button onClick={() => navigate('/')} className="mt-4">
+            Back to Search
+          </Button>
         </div>
       </div>
     );
@@ -225,7 +284,7 @@ const Booking = () => {
                   <div className="flex items-center gap-2 mt-3">
                     <Navigation className="h-4 w-4 text-muted-foreground" />
                     <p className="text-sm text-muted-foreground">
-                      Distance: {train.distance} km • ₹{train.pricePerKm}/km
+                      Distance: {train.distance} km • ₹{train.price_per_km}/km
                     </p>
                   </div>
                 </div>
@@ -288,7 +347,7 @@ const Booking = () => {
                   <span className="text-primary">₹{train.calculatedPrice}</span>
                 </div>
                 <div className="text-xs text-muted-foreground text-center">
-                  {train.distance} km × ₹{train.pricePerKm}/km
+                  {train.distance} km × ₹{train.price_per_km}/km
                 </div>
               </div>
 

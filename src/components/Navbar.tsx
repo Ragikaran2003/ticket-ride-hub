@@ -95,11 +95,27 @@ const Navbar = () => {
                 Logout
               </Button>
             </>
+          ) : admin ? (
+            <>
+              <div className="text-sm text-muted-foreground px-2">
+                Admin: {admin.name}
+              </div>
+              <Button variant="outline" className="w-full" onClick={handleLogout}>
+                <LogOut className="h-4 w-4 mr-2" />
+                Logout Admin
+              </Button>
+            </>
           ) : (
-            <Button className="w-full" onClick={() => navigate('/login')}>
-              <User className="h-4 w-4 mr-2" />
-              Login
-            </Button>
+            <>
+              <Button className="w-full" onClick={() => { navigate('/login'); setSheetOpen(false); }}>
+                <User className="h-4 w-4 mr-2" />
+                Login
+              </Button>
+              <Button variant="outline" className="w-full" onClick={() => { navigate('/admin'); setSheetOpen(false); }}>
+                <Shield className="h-4 w-4 mr-2" />
+                Admin
+              </Button>
+            </>
           )}
         </div>
       </SheetContent>
@@ -160,18 +176,36 @@ const Navbar = () => {
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
+                ) : admin ? (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" className="flex items-center gap-2">
+                        <Shield className="h-4 w-4" />
+                        <span>Admin: {admin.name}</span>
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => navigate('/admin/dashboard')}>
+                        <Shield className="h-4 w-4 mr-2" />
+                        Dashboard
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={handleLogout}>
+                        <LogOut className="h-4 w-4 mr-2" />
+                        Logout Admin
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 ) : (
-                  <Button onClick={() => navigate('/login')}>
-                    <User className="h-4 w-4 mr-2" />
-                    Login
-                  </Button>
-                )}
-                
-                {!user && !admin && (
-                  <Button variant="outline" onClick={() => navigate('/admin')}>
-                    <Shield className="h-4 w-4 mr-2" />
-                    Admin
-                  </Button>
+                  <>
+                    <Button onClick={() => navigate('/login')}>
+                      <User className="h-4 w-4 mr-2" />
+                      Login
+                    </Button>
+                    <Button variant="outline" onClick={() => navigate('/admin')}>
+                      <Shield className="h-4 w-4 mr-2" />
+                      Admin
+                    </Button>
+                  </>
                 )}
               </>
             )}

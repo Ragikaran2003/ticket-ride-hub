@@ -32,9 +32,10 @@ function App() {
               <SearchResults />
             </>
           } />
+          <Route path="/admin" element={<AdminLogin />} />
+          <Route path="/admin/login" element={<AdminLogin />} />
           
           {/* Protected User Routes */}
-          {/* FIX: Changed from "/booking/:trainId" to "/book/:trainId" */}
           <Route path="/book/:trainId" element={
             <>
               <Navbar />
@@ -49,7 +50,6 @@ function App() {
           } />
           
           {/* Admin Routes */}
-          <Route path="/admin" element={<AdminLogin />} />
           <Route path="/admin/dashboard" element={<AdminDashboard />} />
           
           {/* Fallback */}

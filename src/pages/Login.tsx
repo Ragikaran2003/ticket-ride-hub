@@ -14,26 +14,39 @@ const Login = () => {
   const { toast } = useToast();
   const [loginData, setLoginData] = useState({ email: '', password: '' });
   const [registerData, setRegisterData] = useState({ name: '', email: '', password: '' });
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleLogin = () => {
-    const user = loginUser(loginData.email, loginData.password);
-    if (user) {
+  const handleLogin = async () => {
+    if (!loginData.email || !loginData.password) {
+      toast({
+        title: 'Please fill all fields',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const user = await loginUser(loginData.email, loginData.password);
       setCurrentUser(user);
       toast({
         title: 'Welcome back!',
         description: `Hello, ${user.name}`,
       });
       navigate('/');
-    } else {
+    } catch (error) {
+      console.error('Login error:', error);
       toast({
         title: 'Login failed',
-        description: 'Invalid email or password',
+        description: error.response?.data?.error || 'Invalid email or password',
         variant: 'destructive',
       });
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const handleRegister = () => {
+  const handleRegister = async () => {
     if (!registerData.name || !registerData.email || !registerData.password) {
       toast({
         title: 'Please fill all fields',
@@ -42,13 +55,24 @@ const Login = () => {
       return;
     }
 
-    const user = registerUser(registerData.name, registerData.email, registerData.password);
-    setCurrentUser(user);
-    toast({
-      title: 'Account created!',
-      description: `Welcome to Ticket Ride Hub, ${user.name}`,
-    });
-    navigate('/');
+    setIsLoading(true);
+    try {
+      const user = await registerUser(registerData.name, registerData.email, registerData.password);
+      toast({
+        title: 'Account created!',
+        description: `Welcome to Ticket Ride Hub, ${user.name}`,
+      });
+      navigate('/');
+    } catch (error) {
+      console.error('Registration error:', error);
+      toast({
+        title: 'Registration failed',
+        description: error.response?.data?.error || 'Please try again',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -96,8 +120,12 @@ const Login = () => {
               </div>
             </div>
 
-            <Button className="w-full" onClick={handleLogin}>
-              Sign In
+            <Button 
+              className="w-full" 
+              onClick={handleLogin}
+              disabled={isLoading}
+            >
+              {isLoading ? 'Signing In...' : 'Sign In'}
             </Button>
 
             <div className="text-center">
@@ -152,8 +180,12 @@ const Login = () => {
               </div>
             </div>
 
-            <Button className="w-full" onClick={handleRegister}>
-              Create Account
+            <Button 
+              className="w-full" 
+              onClick={handleRegister}
+              disabled={isLoading}
+            >
+              {isLoading ? 'Creating Account...' : 'Create Account'}
             </Button>
 
             <div className="text-center">

@@ -82,58 +82,73 @@ const AdminDashboard = () => {
 
   useEffect(() => {
     const admin = getCurrentAdmin();
+    console.log("Current admin:", admin);
+    
     if (!admin) {
+      console.log("No admin found, redirecting to login");
       navigate("/admin");
       return;
     }
 
-    const allStations = getStations();
-    const allTrains = getAllTrains();
-    const allTickets = getAllTickets();
-
-    console.log("Loaded stations:", allStations);
-    console.log("Loaded trains:", allTrains);
-
-    setTrains(allTrains);
-    setTickets(allTickets);
-    setStations(allStations);
-    setIsLoading(false);
+    loadData();
   }, [navigate]);
+
+  const loadData = async () => {
+    try {
+      setIsLoading(true);
+      console.log("Loading admin dashboard data...");
+      
+      const [allStations, allTrains, allTickets] = await Promise.all([
+        getStations(),
+        getAllTrains(),
+        getAllTickets()
+      ]);
+
+      console.log("Data loaded:", {
+        stations: allStations.length,
+        trains: allTrains.length,
+        tickets: allTickets.length
+      });
+
+      setStations(allStations);
+      setTrains(allTrains);
+      setTickets(allTickets);
+      setFilteredTickets(allTickets);
+    } catch (error) {
+      console.error('Error loading data:', error);
+      toast({
+        title: 'Failed to load data',
+        description: 'Please try again',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   // Filter tickets based on date selection
   useEffect(() => {
-    const allTickets = getAllTickets();
+    if (tickets.length === 0) return;
 
-    if (dateFilter === "all") {
-      setFilteredTickets(allTickets);
-    } else if (dateFilter === "today") {
+    let filtered = tickets;
+
+    if (dateFilter === "today") {
       const today = new Date().toISOString().split("T")[0];
-      const todayTickets = allTickets.filter((ticket) =>
-        ticket.travelDate.startsWith(today)
+      filtered = tickets.filter((ticket) =>
+        ticket.travel_date && ticket.travel_date.startsWith(today)
       );
-      setFilteredTickets(todayTickets);
     } else if (dateFilter === "custom" && selectedDate) {
-      const customDateTickets = allTickets.filter((ticket) =>
-        ticket.travelDate.startsWith(selectedDate)
+      filtered = tickets.filter((ticket) =>
+        ticket.travel_date && ticket.travel_date.startsWith(selectedDate)
       );
-      setFilteredTickets(customDateTickets);
-    } else {
-      setFilteredTickets(allTickets);
     }
+
+    setFilteredTickets(filtered);
   }, [tickets, dateFilter, selectedDate]);
 
-  // Debug station filtering
-  useEffect(() => {
-    console.log("Route Stations:", routeStations);
-    console.log(
-      "Available Stations:",
-      stations.filter(
-        (station) => !routeStations.some((rs) => rs.id === station.id)
-      )
-    );
-  }, [routeStations, stations]);
-
   const handleLogout = () => {
+    localStorage.removeItem("admin");
+    localStorage.removeItem("adminToken");
     localStorage.removeItem("ticket_ride_current_admin");
     navigate("/admin");
   };
@@ -150,23 +165,33 @@ const AdminDashboard = () => {
     setEditingTrain(null);
   };
 
-  const loadTrainRoutes = (trainId) => {
-    const routes = getRoutesByTrain(trainId);
-    const routeStationsData = routes
-      .map((route) => {
-        const station = getStationById(route.stationId);
-        return {
-          ...station,
-          distanceToNext: route.distanceToNext,
-          sequence: route.sequence,
-        };
-      })
-      .sort((a, b) => a.sequence - b.sequence);
+  const loadTrainRoutes = async (trainId) => {
+    try {
+      const routes = await getRoutesByTrain(trainId);
+      const routeStationsData = await Promise.all(
+        routes.map(async (route) => {
+          const station = await getStationById(route.station_id);
+          return {
+            ...station,
+            distanceToNext: route.distance_to_next,
+            sequence: route.sequence,
+          };
+        })
+      );
 
-    setRouteStations(routeStationsData);
+      const sortedStations = routeStationsData.sort((a, b) => a.sequence - b.sequence);
+      setRouteStations(sortedStations);
+    } catch (error) {
+      console.error('Error loading train routes:', error);
+      toast({
+        title: 'Failed to load train routes',
+        description: 'Please try again',
+        variant: 'destructive',
+      });
+    }
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!formData.name || routeStations.length < 2) {
       toast({
         title: "Please fill train name and add at least 2 stations",
@@ -175,63 +200,82 @@ const AdminDashboard = () => {
       return;
     }
 
-    const trainData = {
-      ...formData,
-      pricePerKm: parseFloat(formData.pricePerKm),
-      availableSeats: parseInt(formData.availableSeats),
-    };
+    try {
+      const trainData = {
+        ...formData,
+        pricePerKm: parseFloat(formData.pricePerKm),
+        availableSeats: parseInt(formData.availableSeats),
+      };
 
-    if (editingTrain) {
-      updateTrain(editingTrain.id, trainData);
-      // Update routes
-      const existingRoutes = getRoutesByTrain(editingTrain.id);
-      existingRoutes.forEach((route) => deleteRoute(route.id));
-      routeStations.forEach((station, index) => {
-        addRoute({
-          trainId: editingTrain.id,
-          stationId: station.id,
-          sequence: index,
-          distanceToNext: station.distanceToNext || 0,
-        });
+      if (editingTrain) {
+        await updateTrain(editingTrain.id, trainData);
+        // Update routes
+        const existingRoutes = await getRoutesByTrain(editingTrain.id);
+        for (const route of existingRoutes) {
+          await deleteRoute(route.id);
+        }
+        for (const [index, station] of routeStations.entries()) {
+          await addRoute({
+            trainId: editingTrain.id,
+            stationId: station.id,
+            sequence: index,
+            distanceToNext: station.distanceToNext || 0,
+          });
+        }
+        toast({ title: "Train updated successfully" });
+      } else {
+        const newTrain = await addTrain(trainData);
+        // Add routes
+        for (const [index, station] of routeStations.entries()) {
+          await addRoute({
+            trainId: newTrain.id,
+            stationId: station.id,
+            sequence: index,
+            distanceToNext: station.distanceToNext || 0,
+          });
+        }
+        toast({ title: "Train added successfully" });
+      }
+
+      // Reload data
+      await loadData();
+      setIsAddDialogOpen(false);
+      resetForm();
+    } catch (error) {
+      console.error('Error saving train:', error);
+      toast({
+        title: 'Failed to save train',
+        description: 'Please try again',
+        variant: 'destructive',
       });
-      toast({ title: "Train updated successfully" });
-    } else {
-      const newTrain = addTrain(trainData);
-      // Add routes
-      routeStations.forEach((station, index) => {
-        addRoute({
-          trainId: newTrain.id,
-          stationId: station.id,
-          sequence: index,
-          distanceToNext: station.distanceToNext || 0,
-        });
-      });
-      toast({ title: "Train added successfully" });
     }
-
-    setTrains(getAllTrains());
-    setTickets(getAllTickets());
-    setIsAddDialogOpen(false);
-    resetForm();
   };
 
-  const handleEdit = (train) => {
+  const handleEdit = async (train) => {
     setEditingTrain(train);
     setFormData({
       name: train.name,
-      pricePerKm: train.pricePerKm.toString(),
-      availableSeats: train.availableSeats.toString(),
+      pricePerKm: train.price_per_km.toString(),
+      availableSeats: train.available_seats.toString(),
     });
-    loadTrainRoutes(train.id);
+    await loadTrainRoutes(train.id);
     setIsAddDialogOpen(true);
   };
 
-  const handleDelete = (id) => {
+  const handleDelete = async (id) => {
     if (confirm("Are you sure you want to delete this train?")) {
-      deleteTrain(id);
-      toast({ title: "Train deleted" });
-      setTrains(getAllTrains());
-      setTickets(getAllTickets());
+      try {
+        await deleteTrain(id);
+        toast({ title: "Train deleted" });
+        await loadData();
+      } catch (error) {
+        console.error('Error deleting train:', error);
+        toast({
+          title: 'Failed to delete train',
+          description: 'Please try again',
+          variant: 'destructive',
+        });
+      }
     }
   };
 
@@ -239,11 +283,12 @@ const AdminDashboard = () => {
     const station = stations.find((s) => s.id === selectedStation);
 
     if (!station) {
-      console.log("Station not found:", selectedStation);
+      toast({
+        title: "Station not found",
+        variant: "destructive",
+      });
       return;
     }
-
-    console.log("Adding station:", station);
 
     // If there are existing stations, update the distance for the last station
     if (routeStations.length > 0) {
@@ -287,56 +332,57 @@ const AdminDashboard = () => {
     setRouteStations(updatedStations);
   };
 
-  const handleVerify = () => {
-    const ticket = getTicketByCode(searchCode);
-    if (ticket) {
-      setVerifiedTicket(ticket);
+  const handleVerify = async () => {
+    try {
+      const ticket = await getTicketByCode(searchCode);
+      if (ticket) {
+        setVerifiedTicket(ticket);
+        toast({
+          title: "Ticket Verified!",
+          description: `Valid ticket for ${ticket.passenger_name}`,
+        });
+      } else {
+        setVerifiedTicket(null);
+        toast({
+          title: "Invalid Ticket",
+          description: "No ticket found with this code",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Error verifying ticket:', error);
       toast({
-        title: "Ticket Verified!",
-        description: `Valid ticket for ${ticket.passengerName}`,
-      });
-    } else {
-      setVerifiedTicket(null);
-      toast({
-        title: "Invalid Ticket",
-        description: "No ticket found with this code",
+        title: "Verification failed",
+        description: "Please try again",
         variant: "destructive",
       });
     }
   };
 
-  const handleUpdatePaymentStatus = (ticketId, newStatus) => {
-    updateTicketPaymentStatus(ticketId, newStatus);
-    toast({
-      title: "Payment Status Updated",
-      description: `Ticket status changed to ${newStatus}`,
-    });
-    
-    // Refresh the tickets list
-    const updatedTickets = getAllTickets();
-    setTickets(updatedTickets);
-    
-    // Also update filtered tickets
-    if (dateFilter === "all") {
-      setFilteredTickets(updatedTickets);
-    } else if (dateFilter === "today") {
-      const today = new Date().toISOString().split("T")[0];
-      const todayTickets = updatedTickets.filter((ticket) =>
-        ticket.travelDate.startsWith(today)
-      );
-      setFilteredTickets(todayTickets);
-    } else if (dateFilter === "custom" && selectedDate) {
-      const customDateTickets = updatedTickets.filter((ticket) =>
-        ticket.travelDate.startsWith(selectedDate)
-      );
-      setFilteredTickets(customDateTickets);
-    }
-
-    // Also update verified ticket if it's the same one
-    if (verifiedTicket && verifiedTicket.id === ticketId) {
-      setVerifiedTicket({
-        ...verifiedTicket,
-        paymentStatus: newStatus
+  const handleUpdatePaymentStatus = async (ticketId, newStatus) => {
+    try {
+      await updateTicketPaymentStatus(ticketId, newStatus);
+      toast({
+        title: "Payment Status Updated",
+        description: `Ticket status changed to ${newStatus}`,
+      });
+      
+      // Refresh the tickets list
+      await loadData();
+      
+      // Also update verified ticket if it's the same one
+      if (verifiedTicket && verifiedTicket.id === ticketId) {
+        setVerifiedTicket({
+          ...verifiedTicket,
+          payment_status: newStatus
+        });
+      }
+    } catch (error) {
+      console.error('Error updating payment status:', error);
+      toast({
+        title: "Failed to update payment status",
+        description: "Please try again",
+        variant: "destructive",
       });
     }
   };
@@ -348,14 +394,23 @@ const AdminDashboard = () => {
       <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-accent/5 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-          <p className="mt-4 text-muted-foreground">Loading...</p>
+          <p className="mt-4 text-muted-foreground">Loading Admin Dashboard...</p>
         </div>
       </div>
     );
   }
 
   if (!admin) {
-    return null;
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-accent/5 flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-muted-foreground">No admin session found</p>
+          <Button onClick={() => navigate('/admin')} className="mt-4">
+            Go to Admin Login
+          </Button>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -367,7 +422,7 @@ const AdminDashboard = () => {
             <h1 className="text-2xl font-bold text-primary">Admin Dashboard</h1>
           </div>
           <div className="flex items-center gap-4">
-            <span className="text-sm text-muted-foreground">{admin.name}</span>
+            <span className="text-sm text-muted-foreground">Welcome, {admin.name}</span>
             <Button variant="ghost" onClick={handleLogout}>
               <LogOut className="h-4 w-4 mr-2" />
               Logout
@@ -390,7 +445,6 @@ const AdminDashboard = () => {
           </TabsContent>
 
           <TabsContent value="trains" className="mt-6">
-            {/* Train Management Content - Same as before */}
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-2xl font-bold">Train Management</h2>
               <Dialog
@@ -471,7 +525,6 @@ const AdminDashboard = () => {
                       <div className="space-y-4 mb-4">
                         {routeStations.map((station, index) => (
                           <div key={index}>
-                            {/* Station Card */}
                             <div className="p-3 bg-muted rounded-lg">
                               <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-2">
@@ -497,7 +550,6 @@ const AdminDashboard = () => {
                               </div>
                             </div>
 
-                            {/* Distance Input - Show for ALL stations except the last one */}
                             {index < routeStations.length - 1 && (
                               <div className="mt-2 ml-8 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                                 <Label
@@ -533,7 +585,6 @@ const AdminDashboard = () => {
                               </div>
                             )}
 
-                            {/* Arrow - Show after each station except last */}
                             {index < routeStations.length - 1 && (
                               <div className="flex justify-center mt-2">
                                 <ArrowRight className="h-4 w-4 text-muted-foreground" />
@@ -543,7 +594,6 @@ const AdminDashboard = () => {
                         ))}
                       </div>
 
-                      {/* Add new station section */}
                       <div className="grid md:grid-cols-2 gap-3 p-3 bg-muted/50 rounded-lg">
                         <div>
                           <Label className="text-sm">Select Station</Label>
@@ -568,7 +618,6 @@ const AdminDashboard = () => {
                             <SelectContent>
                               {stations
                                 .filter((station) => {
-                                  // Properly filter out stations already in route
                                   return !routeStations.some(
                                     (routeStation) =>
                                       routeStation.id === station.id
@@ -646,7 +695,6 @@ const AdminDashboard = () => {
                         </div>
                       </div>
 
-                      {/* Route summary */}
                       {routeStations.length > 0 && (
                         <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
                           <h4 className="text-sm font-semibold text-green-800 mb-2">
@@ -710,74 +758,36 @@ const AdminDashboard = () => {
             </div>
 
             <div className="space-y-4">
-              {trains.map((train) => {
-                const routes = getRoutesByTrain(train.id);
-                const routeStationsList = routes.map((route) => {
-                  const station = getStationById(route.stationId);
-                  return station ? station.name : "Unknown Station";
-                });
-
-                const totalDistance = routes.reduce((total, route, index) => {
-                  if (index < routes.length - 1) {
-                    return total + (route.distanceToNext || 0);
-                  }
-                  return total;
-                }, 0);
-
-                const routeDisplay = routeStationsList
-                  .map((station, index) => {
-                    if (index === 0) return station;
-                    const distance = routes[index - 1]?.distanceToNext || 0;
-                    return ` → ${station} (${distance}km)`;
-                  })
-                  .join("");
-
-                return (
-                  <Card key={train.id} className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1">
-                        <h3 className="text-xl font-bold text-primary">
-                          {train.name}
-                        </h3>
-                        <p className="text-sm text-muted-foreground mt-1">
-                          {routeDisplay}
-                        </p>
-                        <div className="flex gap-4 mt-2 text-sm">
-                          <span>₹{train.pricePerKm}/km</span>
-                          <span>{train.availableSeats} seats available</span>
-                          <span>{totalDistance} km total</span>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-4">
-                        <div className="text-right">
-                          <p className="text-sm text-muted-foreground">
-                            Stations
-                          </p>
-                          <p className="text-lg font-bold text-primary">
-                            {routes.length}
-                          </p>
-                        </div>
-                        <div className="flex gap-2">
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            onClick={() => handleEdit(train)}
-                          >
-                            <Edit2 className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            onClick={() => handleDelete(train.id)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
+              {trains.map((train) => (
+                <Card key={train.id} className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <h3 className="text-xl font-bold text-primary">
+                        {train.name}
+                      </h3>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        ₹{train.price_per_km}/km • {train.available_seats} seats available
+                      </p>
                     </div>
-                  </Card>
-                );
-              })}
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => handleEdit(train)}
+                      >
+                        <Edit2 className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => handleDelete(train.id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </Card>
+              ))}
             </div>
           </TabsContent>
 
@@ -787,7 +797,6 @@ const AdminDashboard = () => {
                 All Bookings ({filteredTickets.length})
               </h2>
 
-              {/* Date Filter Controls */}
               <div className="flex items-center gap-4">
                 <div className="flex items-center gap-2">
                   <Label
@@ -825,57 +834,9 @@ const AdminDashboard = () => {
                     />
                   </div>
                 )}
-
-                {/* Quick Date Filters */}
-                <div className="flex items-center gap-2">
-                  <Label className="text-sm whitespace-nowrap">
-                    Quick Filters:
-                  </Label>
-                  <div className="flex gap-1">
-                    <Button
-                      variant={dateFilter === "all" ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => setDateFilter("all")}
-                    >
-                      All
-                    </Button>
-                    <Button
-                      variant={dateFilter === "today" ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => setDateFilter("today")}
-                    >
-                      Today
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        const yesterday = new Date();
-                        yesterday.setDate(yesterday.getDate() - 1);
-                        setSelectedDate(yesterday.toISOString().split("T")[0]);
-                        setDateFilter("custom");
-                      }}
-                    >
-                      Yesterday
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        const tomorrow = new Date();
-                        tomorrow.setDate(tomorrow.getDate() + 1);
-                        setSelectedDate(tomorrow.toISOString().split("T")[0]);
-                        setDateFilter("custom");
-                      }}
-                    >
-                      Tomorrow
-                    </Button>
-                  </div>
-                </div>
               </div>
             </div>
 
-            {/* Booking Statistics */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
               <Card className="p-4 text-center">
                 <div className="text-2xl font-bold text-primary">
@@ -888,7 +849,7 @@ const AdminDashboard = () => {
               <Card className="p-4 text-center">
                 <div className="text-2xl font-bold text-green-600">
                   {
-                    filteredTickets.filter((t) => t.paymentStatus === "paid")
+                    filteredTickets.filter((t) => t.payment_status === "paid")
                       .length
                   }
                 </div>
@@ -897,7 +858,7 @@ const AdminDashboard = () => {
               <Card className="p-4 text-center">
                 <div className="text-2xl font-bold text-orange-600">
                   {
-                    filteredTickets.filter((t) => t.paymentStatus === "pending")
+                    filteredTickets.filter((t) => t.payment_status === "pending")
                       .length
                   }
                 </div>
@@ -907,8 +868,7 @@ const AdminDashboard = () => {
                 <div className="text-2xl font-bold text-blue-600">
                   ₹
                   {filteredTickets.reduce(
-                    (total, ticket) =>
-                      total + (ticket.calculatedPrice || ticket.price),
+                    (total, ticket) => total + (ticket.price || 0),
                     0
                   )}
                 </div>
@@ -918,7 +878,6 @@ const AdminDashboard = () => {
               </Card>
             </div>
 
-            {/* Bookings List */}
             <div className="space-y-4">
               {filteredTickets.length === 0 ? (
                 <Card className="p-12 text-center">
@@ -934,11 +893,7 @@ const AdminDashboard = () => {
                 </Card>
               ) : (
                 filteredTickets
-                  .sort((a, b) => {
-                    const dateA = new Date(a?.createdAt ?? 0).getTime();
-                    const dateB = new Date(b?.createdAt ?? 0).getTime();
-                    return dateB - dateA;
-                  })
+                  .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
                   .map((ticket) => (
                     <Card
                       key={ticket.id}
@@ -948,21 +903,21 @@ const AdminDashboard = () => {
                         <div className="flex-1">
                           <div className="flex items-center gap-3 mb-2">
                             <h3 className="text-lg font-bold text-primary">
-                              {ticket.trainName}
+                              {ticket.train_name}
                             </h3>
                             <Badge
                               variant={
-                                ticket.paymentStatus === "paid"
+                                ticket.payment_status === "paid"
                                   ? "default"
                                   : "secondary"
                               }
                             >
-                              {ticket.paymentStatus === "paid"
+                              {ticket.payment_status === "paid"
                                 ? "Paid"
                                 : "Pending Payment"}
                             </Badge>
                             <Badge variant="outline" className="text-xs">
-                              {new Date(ticket.travelDate).toLocaleDateString(
+                              {new Date(ticket.travel_date).toLocaleDateString(
                                 "en-US",
                                 {
                                   weekday: "short",
@@ -974,19 +929,19 @@ const AdminDashboard = () => {
                             </Badge>
                           </div>
                           <p className="text-sm text-muted-foreground mb-1">
-                            {ticket.origin} → {ticket.destination}
+                            {ticket.origin_name} → {ticket.destination_name}
                           </p>
                           <p className="text-sm">
-                            Passenger: {ticket.passengerName}
+                            Passenger: {ticket.passenger_name}
                           </p>
                           <p className="text-sm text-muted-foreground">
                             Booking Date:{" "}
-                            {new Date(ticket.createdAt).toLocaleDateString()}
+                            {new Date(ticket.created_at).toLocaleDateString()}
                           </p>
                           {ticket.distance && (
                             <p className="text-sm text-muted-foreground">
                               Distance: {ticket.distance} km • Amount: ₹
-                              {ticket.calculatedPrice || ticket.price}
+                              {ticket.price}
                             </p>
                           )}
                         </div>
@@ -995,15 +950,15 @@ const AdminDashboard = () => {
                             Booking Code
                           </p>
                           <p className="text-lg font-bold text-primary">
-                            {ticket.bookingCode}
+                            {ticket.booking_code}
                           </p>
                           <p className="text-xs text-muted-foreground mt-1">
                             Booked:{" "}
-                            {new Date(ticket.createdAt).toLocaleString()}
+                            {new Date(ticket.created_at).toLocaleString()}
                           </p>
                           <div className="mt-2">
                             <Badge variant="outline" className="text-xs">
-                              {ticket.paymentMethod === "cash"
+                              {ticket.payment_method === "cash"
                                 ? "Cash on Board"
                                 : "Online Payment"}
                             </Badge>
@@ -1042,10 +997,10 @@ const AdminDashboard = () => {
                       <Ticket className="h-6 w-6 text-primary mt-1" />
                       <div className="flex-1">
                         <h3 className="text-xl font-bold text-primary">
-                          {verifiedTicket.trainName}
+                          {verifiedTicket.train_name}
                         </h3>
                         <p className="text-sm text-muted-foreground">
-                          {verifiedTicket.route}
+                          {verifiedTicket.origin_name} → {verifiedTicket.destination_name}
                         </p>
                       </div>
                       <Badge className="bg-green-500">Valid</Badge>
@@ -1057,7 +1012,7 @@ const AdminDashboard = () => {
                           Passenger
                         </p>
                         <p className="font-semibold">
-                          {verifiedTicket.passengerName}
+                          {verifiedTicket.passenger_name}
                         </p>
                       </div>
                       <div>
@@ -1066,16 +1021,8 @@ const AdminDashboard = () => {
                         </p>
                         <p className="font-semibold">
                           {new Date(
-                            verifiedTicket.travelDate
+                            verifiedTicket.travel_date
                           ).toLocaleDateString()}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-muted-foreground">
-                          From - To
-                        </p>
-                        <p className="font-semibold">
-                          {verifiedTicket.origin} → {verifiedTicket.destination}
                         </p>
                       </div>
                       <div>
@@ -1085,16 +1032,16 @@ const AdminDashboard = () => {
                         <div className="flex items-center gap-2">
                           <Badge
                             variant={
-                              verifiedTicket.paymentStatus === "paid"
+                              verifiedTicket.payment_status === "paid"
                                 ? "default"
                                 : "secondary"
                             }
                           >
-                            {verifiedTicket.paymentStatus === "paid"
+                            {verifiedTicket.payment_status === "paid"
                               ? "Paid"
                               : "Cash on Boarding"}
                           </Badge>
-                          {verifiedTicket.paymentStatus !== "paid" && (
+                          {verifiedTicket.payment_status !== "paid" && (
                             <Button
                               size="sm"
                               onClick={() => handleUpdatePaymentStatus(verifiedTicket.id, "paid")}

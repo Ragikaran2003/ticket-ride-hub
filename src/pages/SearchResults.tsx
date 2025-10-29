@@ -5,12 +5,14 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Train, Clock, MapPin, ArrowRight, IndianRupee, Navigation } from 'lucide-react';
 import { searchTrains, getStations, calculateDistance, getStationById } from '@/lib/storage';
+import { toast, useToast } from '@/hooks/use-toast';
 
 const SearchResults = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [trains, setTrains] = useState([]);
   const [stations, setStations] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   const origin = searchParams.get('origin') || '';
   const destination = searchParams.get('destination') || '';
@@ -19,10 +21,79 @@ const SearchResults = () => {
   const toStationId = searchParams.get('to') || '';
 
   useEffect(() => {
-    const results = searchTrains(fromStationId, toStationId, date);
-    setTrains(results);
-    setStations(getStations());
+    loadSearchResults();
   }, [fromStationId, toStationId, date]);
+
+  const loadSearchResults = async () => {
+    try {
+      setIsLoading(true);
+      const [trainsData, stationsData] = await Promise.all([
+        searchTrains(fromStationId, toStationId, date),
+        getStations()
+      ]);
+
+      console.log('🚆 Trains found:', trainsData);
+
+      // Calculate distance and price for each train
+      const trainsWithDetails = await Promise.all(
+        trainsData.map(async (train) => {
+          try {
+            const distance = await calculateDistance(train.id, fromStationId, toStationId);
+            const price = Math.round(distance * train.price_per_km);
+            
+            return {
+              ...train,
+              distance: distance,
+              calculatedPrice: price
+            };
+          } catch (error) {
+            console.error(`Error processing train ${train.id}:`, error);
+            // Return train with default values
+            return {
+              ...train,
+              distance: 200,
+              calculatedPrice: 200 * train.price_per_km
+            };
+          }
+        })
+      );
+
+      console.log('✅ Trains with details:', trainsWithDetails);
+      setTrains(trainsWithDetails);
+      setStations(stationsData);
+    } catch (error) {
+      console.error('❌ Search error:', error);
+      toast({
+        title: 'Failed to load trains',
+        description: 'Please try again',
+        variant: 'destructive',
+      });
+      setTrains([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleBookNow = (trainId) => {
+    console.log('🎫 Book Now clicked for train:', trainId);
+    console.log('📅 Date:', date);
+    console.log('📍 From:', fromStationId);
+    console.log('📍 To:', toStationId);
+    
+    // Navigate to booking page with all required parameters
+    navigate(`/book/${trainId}?date=${date}&from=${fromStationId}&to=${toStationId}`);
+  };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-accent/5 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-4 text-muted-foreground">Searching for trains...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-accent/5">
@@ -83,10 +154,8 @@ const SearchResults = () => {
               Available Trains ({trains.length})
             </h2>
             {trains.map((train) => {
-              const distance = calculateDistance(train.id, fromStationId, toStationId);
-              const price = distance * train.pricePerKm;
-              const originStation = getStationById(fromStationId);
-              const destinationStation = getStationById(toStationId);
+              const originStation = stations.find(s => s.id === fromStationId);
+              const destinationStation = stations.find(s => s.id === toStationId);
 
               return (
                 <Card key={train.id} className="p-6 hover:shadow-lg transition-shadow">
@@ -97,7 +166,7 @@ const SearchResults = () => {
                       {/* Route Information */}
                       <div className="flex items-center gap-2 mt-2 text-sm text-muted-foreground">
                         <Navigation className="h-4 w-4" />
-                        <span>{distance} km • ₹{price.toFixed(2)} total fare</span>
+                        <span>{train.distance} km • ₹{train.calculatedPrice} total fare</span>
                       </div>
                     </div>
 
@@ -124,17 +193,17 @@ const SearchResults = () => {
                     <div className="text-right">
                       <div className="flex items-center gap-1 mb-2">
                         <IndianRupee className="h-5 w-5" />
-                        <p className="text-2xl font-bold text-primary">{price.toFixed(2)}</p>
+                        <p className="text-2xl font-bold text-primary">{train.calculatedPrice}</p>
                       </div>
                       <p className="text-sm text-muted-foreground mb-1">
-                        {train.availableSeats} seats available
+                        {train.available_seats} seats available
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        ₹{train.pricePerKm}/km
+                        ₹{train.price_per_km}/km
                       </p>
                       <Button
-                        onClick={() => navigate(`/book/${train.id}?date=${date}&from=${fromStationId}&to=${toStationId}`)}
-                        disabled={train.availableSeats === 0}
+                        onClick={() => handleBookNow(train.id)}
+                        disabled={train.available_seats === 0}
                         className="mt-2"
                       >
                         Book Now

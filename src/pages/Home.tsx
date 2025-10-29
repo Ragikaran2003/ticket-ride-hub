@@ -92,8 +92,22 @@ const Home = () => {
   const [stations, setStations] = useState([]);
 
   useEffect(() => {
-    setStations(getStations());
+    loadStations();
   }, []);
+
+  const loadStations = async () => {
+    try {
+      const stationsData = await getStations();
+      setStations(stationsData);
+    } catch (error) {
+      console.error('Error loading stations:', error);
+      toast({
+        title: 'Failed to load stations',
+        description: 'Please try again later',
+        variant: 'destructive',
+      });
+    }
+  };
 
   const handleSearch = async () => {
     if (!origin || !destination) {
@@ -128,6 +142,7 @@ const Home = () => {
       
       navigate(`/search?origin=${encodeURIComponent(originStation.name)}&destination=${encodeURIComponent(destinationStation.name)}&date=${format(date, 'yyyy-MM-dd')}&from=${origin}&to=${destination}`);
     } catch (error) {
+      console.error('Search error:', error);
       toast({
         title: 'Search failed',
         description: 'Please try again',

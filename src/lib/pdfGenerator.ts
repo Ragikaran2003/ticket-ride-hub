@@ -1,124 +1,115 @@
-import { jsPDF } from 'jspdf';
-import QRCode from 'qrcode';
+import jsPDF from 'jspdf';
 
 export const generateTicketPDF = async (ticket) => {
-  const pdf = new jsPDF();
-  
-  // Generate QR code
-  const qrCodeDataUrl = await QRCode.toDataURL(ticket.qrCode, {
-    width: 100,
-    margin: 1,
-  });
-
-  // Set colors
-  const primaryColor = [28, 47, 84]; // Railway blue
-  const accentColor = [234, 146, 56]; // Amber
-  
-  // Header background
-  pdf.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-  pdf.rect(0, 0, 210, 40, 'F');
-  
-  // Title
-  pdf.setTextColor(255, 255, 255);
-  pdf.setFontSize(24);
-  pdf.setFont('helvetica', 'bold');
-  pdf.text('TICKET RIDE HUB', 105, 20, { align: 'center' });
-  
-  pdf.setFontSize(12);
-  pdf.setFont('helvetica', 'normal');
-  pdf.text('Your Journey Ticket', 105, 30, { align: 'center' });
-  
-  // Booking code banner
-  pdf.setFillColor(accentColor[0], accentColor[1], accentColor[2]);
-  pdf.rect(0, 45, 210, 15, 'F');
-  pdf.setTextColor(255, 255, 255);
-  pdf.setFontSize(14);
-  pdf.setFont('helvetica', 'bold');
-  pdf.text(`Booking Code: ${ticket.bookingCode}`, 105, 55, { align: 'center' });
-  
-  // Reset text color
-  pdf.setTextColor(0, 0, 0);
-  
-  // Train details
-  pdf.setFontSize(16);
-  pdf.setFont('helvetica', 'bold');
-  pdf.text(ticket.trainName, 20, 75);
-  
-  pdf.setFontSize(12);
-  pdf.setFont('helvetica', 'normal');
-  pdf.text(`Route: ${ticket.route}`, 20, 83);
-  pdf.text(`Distance : ${ticket.distance} km`, 20, 91);
-  
-  // Journey details box
-  pdf.setDrawColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-  pdf.setLineWidth(0.5);
-  pdf.roundedRect(20, 95, 170, 60, 3, 3);
-  
-  // Origin
-  pdf.setFontSize(10);
-  pdf.setTextColor(100, 100, 100);
-  pdf.text('FROM', 30, 105);
-  pdf.setFontSize(14);
-  pdf.setTextColor(0, 0, 0);
-  pdf.setFont('helvetica', 'bold');
-  pdf.text(ticket.origin, 30, 115);
-  pdf.setFont('helvetica', 'normal');
-  pdf.setFontSize(10);
-  pdf.text(ticket.departureTime, 30, 122);
-  
-
-  // Destination
-  pdf.setFontSize(10);
-  pdf.setTextColor(100, 100, 100);
-  pdf.text('TO', 120, 105);
-  pdf.setFontSize(14);
-  pdf.setTextColor(0, 0, 0);
-  pdf.setFont('helvetica', 'bold');
-  pdf.text(ticket.destination, 120, 115);
-  pdf.setFont('helvetica', 'normal');
-  pdf.setFontSize(10);
-  pdf.text(ticket.arrivalTime, 120, 122);
-  
-  // Date
-  pdf.setFontSize(10);
-  pdf.setTextColor(100, 100, 100);
-  pdf.text('DATE', 30, 135);
-  pdf.setFontSize(12);
-  pdf.setTextColor(0, 0, 0);
-  pdf.text(new Date(ticket.travelDate).toLocaleDateString(), 30, 145);
-  
-  // Passenger details
-  pdf.setFontSize(10);
-  pdf.setTextColor(100, 100, 100);
-  pdf.text('PASSENGER', 120, 135);
-  pdf.setFontSize(12);
-  pdf.setTextColor(0, 0, 0);
-  pdf.text(ticket.passengerName, 120, 145);
-  
-  // Payment status
-  pdf.setFontSize(10);
-  pdf.text(`Payment: ${ticket.paymentMethod.toUpperCase()} - ${ticket.paymentStatus.toUpperCase()}`, 20, 165);
-  
-  // QR Code
-  pdf.addImage(qrCodeDataUrl, 'PNG', 155, 170, 35, 35);
-  pdf.setFontSize(8);
-  pdf.setTextColor(100, 100, 100);
-  pdf.text('Scan to verify', 160, 210);
-  
-  // Instructions
-  pdf.setFontSize(9);
-  pdf.setTextColor(0, 0, 0);
-  pdf.text('Please present this ticket and a valid ID at the station.', 20, 180);
-  pdf.text('Arrive at least 30 minutes before departure.', 20, 188);
-  
-  // Footer
-  pdf.setFillColor(240, 240, 240);
-  pdf.rect(0, 270, 210, 27, 'F');
-  pdf.setFontSize(8);
-  pdf.setTextColor(100, 100, 100);
-  pdf.text('Ticket Ride Hub - Making railway travel simple and efficient', 105, 280, { align: 'center' });
-  pdf.text(`Booked on: ${new Date(ticket.createdAt).toLocaleString()}`, 105, 287, { align: 'center' });
-  
-  // Save PDF
-  pdf.save(`ticket-${ticket.bookingCode}.pdf`);
+  try {
+    console.log('📄 Generating PDF for ticket:', ticket);
+    
+    // Create new PDF document
+    const doc = new jsPDF();
+    
+    // Set background color
+    doc.setFillColor(28, 47, 84); // Dark blue
+    doc.rect(0, 0, 210, 50, 'F');
+    
+    // Header
+    doc.setFontSize(24);
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.text('TICKET RIDE HUB', 105, 20, { align: 'center' });
+    
+    doc.setFontSize(12);
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Your Journey Ticket', 105, 30, { align: 'center' });
+    
+    // Booking code highlight
+    doc.setFillColor(234, 146, 56); // Orange
+    doc.rect(20, 55, 170, 15, 'F');
+    doc.setFontSize(14);
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`Booking Code: ${ticket.booking_code || ticket.bookingCode}`, 105, 65, { align: 'center' });
+    
+    // Reset text color
+    doc.setTextColor(0, 0, 0);
+    
+    // Train details
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.text(ticket.train_name || ticket.trainName || 'Train', 20, 90);
+    
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Route: ${ticket.origin_name || ticket.origin} to ${ticket.destination_name || ticket.destination}`, 20, 105);
+    doc.text(`Distance: ${ticket.distance} km`, 20, 115);
+    
+    // Journey box
+    doc.setDrawColor(28, 47, 84);
+    doc.setLineWidth(1);
+    doc.roundedRect(20, 125, 170, 40, 3, 3);
+    doc.stroke();
+    
+    // Origin details
+    doc.setFontSize(10);
+    doc.setTextColor(102, 102, 102);
+    doc.text('FROM', 35, 140);
+    doc.setFontSize(14);
+    doc.setTextColor(0, 0, 0);
+    doc.setFont('helvetica', 'bold');
+    doc.text(ticket.origin_name || ticket.origin || 'Origin', 35, 150);
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(ticket.departure_time || '08:00 AM', 35, 157);
+    
+    // Destination details
+    doc.setFontSize(10);
+    doc.setTextColor(102, 102, 102);
+    doc.text('TO', 120, 140);
+    doc.setFontSize(14);
+    doc.setTextColor(0, 0, 0);
+    doc.setFont('helvetica', 'bold');
+    doc.text(ticket.destination_name || ticket.destination || 'Destination', 120, 150);
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(ticket.arrival_time || '04:00 PM', 120, 157);
+    
+    // Date and passenger info
+    doc.setFontSize(10);
+    doc.setTextColor(102, 102, 102);
+    doc.text('DATE', 35, 170);
+    doc.text('PASSENGER', 120, 170);
+    
+    doc.setFontSize(12);
+    doc.setTextColor(0, 0, 0);
+    doc.text(new Date(ticket.travel_date || ticket.travelDate).toLocaleDateString(), 35, 177);
+    doc.text(ticket.passenger_name || ticket.passengerName, 120, 177);
+    
+    // Payment info
+    doc.setFontSize(10);
+    doc.text(`Payment: ${(ticket.payment_method || ticket.paymentMethod || 'cash').toUpperCase()} - ${(ticket.payment_status || ticket.paymentStatus || 'pending').toUpperCase()}`, 20, 195);
+    
+    // Price
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(28, 47, 84);
+    doc.text(`Total: Rs.${ticket.price}`, 20, 215);
+    
+    // Footer
+    doc.setFontSize(8);
+    doc.setTextColor(102, 102, 102);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Ticket Ride Hub - Making railway travel simple and efficient', 105, 280, { align: 'center' });
+    doc.text(`Generated on: ${new Date().toLocaleString()}`, 105, 285, { align: 'center' });
+    
+    // Save the PDF
+    const fileName = `ticket-${ticket.booking_code || ticket.bookingCode}.pdf`;
+    doc.save(fileName);
+    
+    console.log('✅ PDF generated successfully:', fileName);
+    return true;
+    
+  } catch (error) {
+    console.error('❌ PDF generation failed:', error);
+    throw new Error('Failed to generate PDF: ' + error.message);
+  }
 };
