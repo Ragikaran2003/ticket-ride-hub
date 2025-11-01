@@ -23,8 +23,7 @@ export const setCurrentUser = (user) => {
 
 export const registerUser = async (name, email, password) => {
   const result = await authService.register({ name, email, password });
-  setCurrentUser(result.user);
-  localStorage.setItem('token', result.token);
+  
   return result.user;
 };
 
@@ -178,13 +177,18 @@ export const setCurrentAdmin = (admin) => {
   }
 };
 
+// In your storage.js
 export const loginAdmin = async (email, password) => {
   try {
     console.log('Calling authService.adminLogin with:', email);
     const result = await authService.adminLogin({ email, password });
     console.log('Admin login result:', result);
+    
+    // Store admin data
     setCurrentAdmin(result.admin);
-    return result.admin;
+    localStorage.setItem('adminToken', result.token);
+    
+    return result.admin; // 🔥 Return the admin object
   } catch (error) {
     console.error('Error in loginAdmin:', error);
     throw error;

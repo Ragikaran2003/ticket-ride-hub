@@ -20,12 +20,9 @@ export const authService = {
   // Admin login
   adminLogin: async (credentials) => {
     const response = await api.post('/auth/admin/login', credentials);
-    if (response.data.token) {
-      localStorage.setItem('adminToken', response.data.token);
-      localStorage.setItem('admin', JSON.stringify(response.data.admin));
-    }
     return response.data;
   },
+
 
   // Get current user
   getCurrentUser: async () => {

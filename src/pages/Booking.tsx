@@ -176,11 +176,21 @@ const Booking = () => {
         errorMessage = error.message || 'Booking failed. Please try again.';
       }
 
-      toast({
-        title: 'Booking Failed',
-        description: errorMessage,
-        variant: 'destructive',
-      });
+       if (error.response?.data?.error?.includes('already booked')) {
+    // Show specific duplicate booking error
+    toast({
+      title: 'Duplicate Booking',
+      description: error.response.data.error,
+      variant: 'destructive'
+    });
+  } else {
+    // Other errors
+    toast({
+      title: 'Booking Failed',
+      description: error.response?.data?.error || 'Please try again',
+      variant: 'destructive'
+    });
+  }
     } finally {
       setIsProcessing(false);
     }

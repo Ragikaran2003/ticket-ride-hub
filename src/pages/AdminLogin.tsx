@@ -4,9 +4,10 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Shield, Train } from 'lucide-react';
-import { loginAdmin, setCurrentAdmin } from '@/lib/storage';
+import { Shield } from 'lucide-react';
+import { loginAdmin } from '@/lib/storage'; // 🔥 Use your service function
 import { useToast } from '@/hooks/use-toast';
+import api from '@/services/api'; // 🔥 Import api instance
 
 const AdminLogin = () => {
   const navigate = useNavigate();
@@ -29,40 +30,21 @@ const AdminLogin = () => {
     setIsLoading(true);
     
     try {
-      console.log('📤 Calling loginAdmin API...');
+      console.log('📤 Calling loginAdmin service...');
       
-      // Direct API call for testing
-      const response = await fetch('http://localhost:5000/api/auth/admin/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, password }),
-      });
-
-      console.log('📥 API Response status:', response.status);
+      // 🔥 Use the service function from storage instead of direct fetch
+      const admin = await loginAdmin(email, password);
       
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error('❌ API Error:', errorData);
-        throw new Error(errorData.error || 'Login failed');
-      }
+      console.log('✅ Login successful:', admin);
 
-      const result = await response.json();
-      console.log('✅ Login successful:', result);
-
-      // Store admin data manually
-      localStorage.setItem('admin', JSON.stringify(result.admin));
-      localStorage.setItem('adminToken', result.token);
-      
       toast({
         title: 'Admin Access Granted',
-        description: `Welcome, ${result.admin.name}`,
+        description: `Welcome, ${admin.name}`,
       });
 
       console.log('🔄 Navigating to dashboard...');
-      // Force navigation
-      window.location.href = '/admin/dashboard';
+      // Use navigate for better UX
+      navigate('/admin/dashboard');
       
     } catch (error: any) {
       console.error('❌ Login failed:', error);
@@ -82,21 +64,21 @@ const AdminLogin = () => {
     }
   };
 
-  // Test backend connection
+  // Test backend connection using api instance
   const testConnection = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/health');
-      const data = await response.json();
-      console.log('Backend health check:', data);
+      // 🔥 Use the api instance instead of direct fetch
+      const response = await api.get('/health');
+      console.log('Backend health check:', response.data);
       toast({
         title: 'Backend Connected',
         description: 'Backend server is running',
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Backend connection failed:', error);
       toast({
         title: 'Backend Connection Failed',
-        description: 'Make sure backend server is running on port 5000',
+        description: error.message || 'Make sure backend server is running',
         variant: 'destructive',
       });
     }
@@ -141,7 +123,7 @@ const AdminLogin = () => {
             className="w-full" 
             onClick={handleLogin}
             disabled={isLoading}
-            type="button" // Important: type="button"
+            type="button"
           >
             {isLoading ? (
               <>
@@ -174,9 +156,6 @@ const AdminLogin = () => {
           <div className="mt-4 p-3 bg-muted rounded-lg">
             <p className="text-xs text-muted-foreground text-center">
               Demo: admin@ticketride.com / admin123
-            </p>
-            <p className="text-xs text-muted-foreground text-center mt-2">
-              Backend: http://localhost:5000
             </p>
           </div>
         </div>

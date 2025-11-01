@@ -1,26 +1,30 @@
-import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Train, User, Mail, Lock } from 'lucide-react';
-import { registerUser, loginUser, setCurrentUser } from '@/lib/storage';
-import { useToast } from '@/hooks/use-toast';
+import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Train, User, Mail, Lock } from "lucide-react";
+import { registerUser, loginUser, setCurrentUser } from "@/lib/storage";
+import { useToast } from "@/hooks/use-toast";
 
 const Login = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [loginData, setLoginData] = useState({ email: '', password: '' });
-  const [registerData, setRegisterData] = useState({ name: '', email: '', password: '' });
+  const [loginData, setLoginData] = useState({ email: "", password: "" });
+  const [registerData, setRegisterData] = useState({
+    name: "",
+    email: "",
+    password: "",
+  });
   const [isLoading, setIsLoading] = useState(false);
 
   const handleLogin = async () => {
     if (!loginData.email || !loginData.password) {
       toast({
-        title: 'Please fill all fields',
-        variant: 'destructive',
+        title: "Please fill all fields",
+        variant: "destructive",
       });
       return;
     }
@@ -30,16 +34,16 @@ const Login = () => {
       const user = await loginUser(loginData.email, loginData.password);
       setCurrentUser(user);
       toast({
-        title: 'Welcome back!',
+        title: "Welcome back!",
         description: `Hello, ${user.name}`,
       });
-      navigate('/');
+      navigate("/");
     } catch (error) {
-      console.error('Login error:', error);
+      console.error("Login error:", error);
       toast({
-        title: 'Login failed',
-        description: error.response?.data?.error || 'Invalid email or password',
-        variant: 'destructive',
+        title: "Login failed",
+        description: error.response?.data?.error || "Invalid email or password",
+        variant: "destructive",
       });
     } finally {
       setIsLoading(false);
@@ -49,26 +53,31 @@ const Login = () => {
   const handleRegister = async () => {
     if (!registerData.name || !registerData.email || !registerData.password) {
       toast({
-        title: 'Please fill all fields',
-        variant: 'destructive',
+        title: "Please fill all fields",
+        variant: "destructive",
       });
       return;
     }
 
     setIsLoading(true);
     try {
-      const user = await registerUser(registerData.name, registerData.email, registerData.password);
+      const user = await registerUser(
+        registerData.name,
+        registerData.email,
+        registerData.password
+      );
       toast({
-        title: 'Account created!',
-        description: `Welcome to Ticket Ride Hub, ${user.name}`,
+        title: "Account Created Successfully!",
+        description: `Welcome to Ticket Ride Hub, ${user.name}! Please log in to continue.`,
       });
-      navigate('/');
+
+      navigate("/");
     } catch (error) {
-      console.error('Registration error:', error);
+      console.error("Registration error:", error);
       toast({
-        title: 'Registration failed',
-        description: error.response?.data?.error || 'Please try again',
-        variant: 'destructive',
+        title: "Registration failed",
+        description: error.response?.data?.error || "Please try again",
+        variant: "destructive",
       });
     } finally {
       setIsLoading(false);
@@ -99,7 +108,9 @@ const Login = () => {
                   type="email"
                   placeholder="your@email.com"
                   value={loginData.email}
-                  onChange={(e) => setLoginData({...loginData, email: e.target.value})}
+                  onChange={(e) =>
+                    setLoginData({ ...loginData, email: e.target.value })
+                  }
                   className="pl-10"
                 />
               </div>
@@ -114,18 +125,20 @@ const Login = () => {
                   type="password"
                   placeholder="••••••••"
                   value={loginData.password}
-                  onChange={(e) => setLoginData({...loginData, password: e.target.value})}
+                  onChange={(e) =>
+                    setLoginData({ ...loginData, password: e.target.value })
+                  }
                   className="pl-10"
                 />
               </div>
             </div>
 
-            <Button 
-              className="w-full" 
+            <Button
+              className="w-full"
               onClick={handleLogin}
               disabled={isLoading}
             >
-              {isLoading ? 'Signing In...' : 'Sign In'}
+              {isLoading ? "Signing In..." : "Sign In"}
             </Button>
 
             <div className="text-center">
@@ -144,7 +157,9 @@ const Login = () => {
                   id="register-name"
                   placeholder="John Doe"
                   value={registerData.name}
-                  onChange={(e) => setRegisterData({...registerData, name: e.target.value})}
+                  onChange={(e) =>
+                    setRegisterData({ ...registerData, name: e.target.value })
+                  }
                   className="pl-10"
                 />
               </div>
@@ -159,7 +174,9 @@ const Login = () => {
                   type="email"
                   placeholder="your@email.com"
                   value={registerData.email}
-                  onChange={(e) => setRegisterData({...registerData, email: e.target.value})}
+                  onChange={(e) =>
+                    setRegisterData({ ...registerData, email: e.target.value })
+                  }
                   className="pl-10"
                 />
               </div>
@@ -174,18 +191,23 @@ const Login = () => {
                   type="password"
                   placeholder="••••••••"
                   value={registerData.password}
-                  onChange={(e) => setRegisterData({...registerData, password: e.target.value})}
+                  onChange={(e) =>
+                    setRegisterData({
+                      ...registerData,
+                      password: e.target.value,
+                    })
+                  }
                   className="pl-10"
                 />
               </div>
             </div>
 
-            <Button 
-              className="w-full" 
+            <Button
+              className="w-full"
               onClick={handleRegister}
               disabled={isLoading}
             >
-              {isLoading ? 'Creating Account...' : 'Create Account'}
+              {isLoading ? "Creating Account..." : "Create Account"}
             </Button>
 
             <div className="text-center">
