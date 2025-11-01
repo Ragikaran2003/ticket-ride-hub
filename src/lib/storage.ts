@@ -81,7 +81,13 @@ export const searchTrains = async (originStationId, destinationStationId, date) 
 
 export const addTrain = async (trainData) => {
   const result = await trainService.createTrain(trainData);
-  return result.train;
+  console.log('🎯 Train creation result:', result);
+  
+  if (!result || !result.id) {
+    throw new Error('Train ID not returned from server');
+  }
+  
+  return result; // This should have the ID
 };
 
 export const updateTrain = async (id, trainData) => {
@@ -94,12 +100,13 @@ export const deleteTrain = async (id) => {
   return true;
 };
 
-// Route operations
+// Route operations - UPDATED: Remove sequence from route data
 export const getRoutesByTrain = async (trainId) => {
   return await routeService.getRoutesByTrain(trainId);
 };
 
 export const addRoute = async (routeData) => {
+  // Just send the data - backend handles sequence automatically
   const result = await routeService.createRoute(routeData);
   return result.route;
 };
@@ -109,11 +116,10 @@ export const deleteRoute = async (id) => {
   return true;
 };
 
-// FIXED: Completely client-side distance calculation
+// Distance calculation
 export const calculateDistance = async (trainId, fromStationId, toStationId) => {
   console.log('📍 Calculating distance for:', fromStationId, '→', toStationId);
 
-  // Simple and reliable distance calculation
   const stationMap = {
     'station-001': 1, 'station-002': 2, 'station-003': 3,
     'station-004': 4, 'station-005': 5, 'station-006': 6,
@@ -123,8 +129,6 @@ export const calculateDistance = async (trainId, fromStationId, toStationId) => 
   const fromNum = stationMap[fromStationId] || 1;
   const toNum = stationMap[toStationId] || 2;
   const stationDiff = Math.abs(toNum - fromNum);
-
-  // Base distance calculation: 150km per station difference + 100km minimum
   const distance = Math.max(stationDiff * 150, 100);
 
   console.log('✅ Distance calculated:', distance, 'km');

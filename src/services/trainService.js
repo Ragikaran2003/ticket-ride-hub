@@ -22,13 +22,14 @@ export const trainService = {
   // Create train (Admin only)
   createTrain: async (trainData) => {
     const response = await api.post('/trains', trainData);
-    return response.data;
+    console.log('🚆 Train creation response:', response.data);
+    return response.data.train; // 🔥 Return the train object with ID
   },
 
   // Update train (Admin only)
   updateTrain: async (id, trainData) => {
     const response = await api.put(`/trains/${id}`, trainData);
-    return response.data;
+    return response.data.train;
   },
 
   // Delete train (Admin only)

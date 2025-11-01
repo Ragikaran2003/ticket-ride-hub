@@ -4,8 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Train, Clock, MapPin, ArrowRight, IndianRupee, Navigation } from 'lucide-react';
-import { searchTrains, getStations, calculateDistance, getStationById } from '@/lib/storage';
-import { toast, useToast } from '@/hooks/use-toast';
+import { searchTrains, getStations } from '@/lib/storage';
+import { toast } from '@/hooks/use-toast';
 
 const SearchResults = () => {
   const navigate = useNavigate();
@@ -34,29 +34,20 @@ const SearchResults = () => {
 
       console.log('🚆 Trains found:', trainsData);
 
-      // Calculate distance and price for each train
-      const trainsWithDetails = await Promise.all(
-        trainsData.map(async (train) => {
-          try {
-            const distance = await calculateDistance(train.id, fromStationId, toStationId);
-            const price = Math.round(distance * train.price_per_km);
-            
-            return {
-              ...train,
-              distance: distance,
-              calculatedPrice: price
-            };
-          } catch (error) {
-            console.error(`Error processing train ${train.id}:`, error);
-            // Return train with default values
-            return {
-              ...train,
-              distance: 200,
-              calculatedPrice: 200 * train.price_per_km
-            };
-          }
-        })
-      );
+      // Use the distance and price directly from API response (no manual calculation needed)
+      const trainsWithDetails = trainsData.map((train) => {
+        console.log(`🚆 Train ${train.name}:`, {
+          distance: train.distance, // Already calculated by backend
+          price: train.price, // Already calculated by backend
+          price_per_km: train.price_per_km
+        });
+        
+        return {
+          ...train,
+          distance: train.distance, // Use backend-calculated distance
+          calculatedPrice: train.price // Use backend-calculated price
+        };
+      });
 
       console.log('✅ Trains with details:', trainsWithDetails);
       setTrains(trainsWithDetails);
@@ -74,14 +65,30 @@ const SearchResults = () => {
     }
   };
 
-  const handleBookNow = (trainId) => {
-    console.log('🎫 Book Now clicked for train:', trainId);
-    console.log('📅 Date:', date);
-    console.log('📍 From:', fromStationId);
-    console.log('📍 To:', toStationId);
+  const handleBookNow = (train) => {
+    console.log('🎫 Book Now clicked for train:', train);
+    console.log('📅 Date to pass:', date);
     
-    // Navigate to booking page with all required parameters
-    navigate(`/book/${trainId}?date=${date}&from=${fromStationId}&to=${toStationId}`);
+    // Navigate to booking page with train data and ALL required parameters
+    navigate(`/book/${train.id}`, {
+      state: {
+        trainData: {
+          ...train,
+          travelDate: date, // Make sure date is included in trainData
+          fromStationId: fromStationId,
+          toStationId: toStationId,
+          origin: origin,
+          destination: destination
+        },
+        searchParams: {
+          date: date, // Pass date explicitly
+          from: fromStationId,
+          to: toStationId,
+          origin: origin,
+          destination: destination
+        }
+      }
+    });
   };
 
   if (isLoading) {
@@ -126,12 +133,12 @@ const SearchResults = () => {
               </div>
             </div>
             <Badge variant="outline" className="text-base">
-              {new Date(date).toLocaleDateString('en-US', { 
+              {date ? new Date(date).toLocaleDateString('en-US', { 
                 weekday: 'short', 
                 year: 'numeric', 
                 month: 'short', 
                 day: 'numeric' 
-              })}
+              }) : 'No date selected'}
             </Badge>
           </div>
         </Card>
@@ -202,7 +209,7 @@ const SearchResults = () => {
                         ₹{train.price_per_km}/km
                       </p>
                       <Button
-                        onClick={() => handleBookNow(train.id)}
+                        onClick={() => handleBookNow(train)}
                         disabled={train.available_seats === 0}
                         className="mt-2"
                       >

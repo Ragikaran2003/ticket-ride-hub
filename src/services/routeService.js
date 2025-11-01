@@ -7,8 +7,9 @@ export const routeService = {
     return response.data;
   },
 
-  // Create route (Admin only)
+  // Create route (Admin only) - NO NEED TO REMOVE SEQUENCE ANYMORE
   createRoute: async (routeData) => {
+    // Just send the data as is - backend will handle sequence
     const response = await api.post('/routes', routeData);
     return response.data;
   },
@@ -25,10 +26,10 @@ export const routeService = {
     return response.data;
   },
 
-  // Calculate distance between stations - FIXED: Client-side only
+  // Calculate distance between stations
   calculateDistance: async (trainId, originStationId, destinationStationId) => {
     console.log('📍 Client-side distance calculation');
-    // Return mock response that matches expected format
+    
     const stationMap = {
       'station-001': 1, 'station-002': 2, 'station-003': 3, 
       'station-004': 4, 'station-005': 5, 'station-006': 6,

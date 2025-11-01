@@ -1,38 +1,31 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Train, Clock, MapPin, IndianRupee, Calendar as CalendarIcon, Navigation } from 'lucide-react';
-import { getTrainById, addTicket, getCurrentUser, calculateDistance, getStationById } from '@/lib/storage';
+import { Train, Clock, MapPin, IndianRupee, Calendar as CalendarIcon, Navigation, User } from 'lucide-react';
+import { addTicket, getCurrentUser } from '@/lib/storage';
 import { generateTicketPDF } from '@/lib/pdfGenerator';
 import { useToast } from '@/hooks/use-toast';
 
 const Booking = () => {
   const navigate = useNavigate();
   const { trainId } = useParams();
-  const [searchParams] = useSearchParams();
+  const location = useLocation();
   const { toast } = useToast();
   
   const [train, setTrain] = useState(null);
   const [passengerName, setPassengerName] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [isProcessing, setIsProcessing] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [hasLoaded, setHasLoaded] = useState(false); // Add this to prevent reloads
+  const [isLoading, setIsLoading] = useState(false);
 
-  const travelDate = searchParams.get('date') || '';
-  const fromStationId = searchParams.get('from') || '';
-  const toStationId = searchParams.get('to') || '';
   const user = getCurrentUser();
 
   useEffect(() => {
-    // Prevent multiple loads
-    if (hasLoaded) return;
-
-    const loadBookingData = async () => {
+    const initializeBooking = () => {
       if (!user) {
         toast({
           title: 'Please login first',
@@ -42,7 +35,24 @@ const Booking = () => {
         return;
       }
 
-      if (!travelDate) {
+      // Get data passed from search results via state
+      const { trainData, searchParams } = location.state || {};
+
+      console.log('📍 Location state:', location.state);
+      console.log('📦 Train data:', trainData);
+      console.log('🔍 Search params:', searchParams);
+
+      if (!trainData || !searchParams) {
+        toast({
+          title: 'Invalid booking data',
+          description: 'Please search for trains again',
+          variant: 'destructive',
+        });
+        navigate('/');
+        return;
+      }
+
+      if (!searchParams.date) {
         toast({
           title: 'Please select travel date',
           variant: 'destructive',
@@ -51,174 +61,151 @@ const Booking = () => {
         return;
       }
 
-      if (!fromStationId || !toStationId) {
-        toast({
-          title: 'Invalid station selection',
-          variant: 'destructive',
-        });
-        navigate('/');
-        return;
-      }
-
-      try {
-        setIsLoading(true);
-        console.log('🔄 Loading booking data...');
-        
-        // Get train data
-        const trainData = await getTrainById(trainId);
-        if (!trainData) {
-          toast({
-            title: 'Train not found',
-            variant: 'destructive',
-          });
-          navigate('/');
-          return;
-        }
-
-        // Calculate distance and price
-        const distance = await calculateDistance(trainId, fromStationId, toStationId);
-        const calculatedPrice = Math.round(distance * trainData.price_per_km);
-        
-        // Get station names
-        let originStation, destinationStation;
-        try {
-          originStation = await getStationById(fromStationId);
-          destinationStation = await getStationById(toStationId);
-        } catch (error) {
-          console.error('Error loading stations:', error);
-          originStation = { name: 'Origin Station' };
-          destinationStation = { name: 'Destination Station' };
-        }
-
-        console.log('✅ Booking details loaded:', {
-          trainData,
-          distance,
-          calculatedPrice,
-          originStation,
-          destinationStation
-        });
-
-        setTrain({
-          ...trainData,
-          distance,
-          calculatedPrice,
-          origin: originStation?.name || 'Origin Station',
-          destination: destinationStation?.name || 'Destination Station',
-          price_per_km: trainData.price_per_km,
-        });
-        setPassengerName(user.name);
-        setHasLoaded(true); // Mark as loaded to prevent reloads
-      } catch (error) {
-        console.error('❌ Error loading booking data:', error);
-        toast({
-          title: 'Failed to load booking details',
-          description: 'Please try again',
-          variant: 'destructive',
-        });
-      } finally {
-        setIsLoading(false);
-      }
+      // Use the data passed from search results (no API calls needed)
+      setTrain({
+        ...trainData,
+        travelDate: searchParams.date,
+        fromStationId: searchParams.from,
+        toStationId: searchParams.to,
+        origin: searchParams.origin,
+        destination: searchParams.destination
+      });
+      
+      setPassengerName(user.name);
     };
 
-    loadBookingData();
-  }, [trainId, travelDate, fromStationId, toStationId, user, navigate, toast, hasLoaded]); // Add hasLoaded to dependencies
+    initializeBooking();
+  }, [user, navigate, toast, location.state]);
 
-const handleBooking = async () => {
-  if (!passengerName.trim()) {
-    toast({
-      title: 'Please enter passenger name',
-      variant: 'destructive',
-    });
-    return;
-  }
+  const handleBooking = async () => {
+    if (!passengerName.trim()) {
+      toast({
+        title: 'Please enter passenger name',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (!train) {
+      toast({
+        title: 'Train information not loaded',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsProcessing(true);
+
+    try {
+      // Create ticket data
+      const ticketData = {
+        trainId: train.id,
+        passengerName: passengerName.trim(),
+        originStationId: train.fromStationId,
+        destinationStationId: train.toStationId,
+        travelDate: train.travelDate,
+        paymentMethod: paymentMethod,
+      };
+
+      console.log('🎫 Creating ticket with data:', ticketData);
+      console.log('💰 Expected price:', train.calculatedPrice || train.price);
+      console.log('📏 Expected distance:', train.distance);
+
+      // Add ticket to storage
+      const result = await addTicket(ticketData);
+      
+      const ticket = result.ticket || result;
+      
+      if (!ticket) {
+        throw new Error('No ticket data received from server');
+      }
+
+      console.log('✅ Ticket created successfully:', ticket);
+
+      toast({
+        title: 'Booking Confirmed! 🎉',
+        description: 'Your ticket has been booked successfully',
+      });
+
+      // Generate PDF
+      try {
+        const pdfTicketData = {
+          ...ticket,
+          train_name: train.name,
+          origin_name: train.origin,
+          destination_name: train.destination,
+          distance: ticket.distance || train.distance,
+          price: ticket.price || train.calculatedPrice || train.price,
+          departure_time: '08:00 AM',
+          arrival_time: '04:00 PM',
+          travel_date: train.travelDate,
+          passenger_name: passengerName.trim(),
+          payment_method: paymentMethod,
+          payment_status: paymentMethod === 'cash' ? 'pending' : 'paid'
+        };
+        
+        await generateTicketPDF(pdfTicketData);
+        console.log('📄 PDF generated successfully');
+        
+      } catch (pdfError) {
+        console.error('PDF generation failed:', pdfError);
+        toast({
+          title: 'Ticket booked! 📝',
+          description: 'PDF download failed, but you can view your ticket in My Tickets',
+          variant: 'default',
+        });
+      }
+      
+      setTimeout(() => {
+        navigate('/my-tickets');
+      }, 2000);
+
+    } catch (error) {
+      console.error('❌ Booking error details:', error);
+      
+      let errorMessage = 'Booking failed. Please try again.';
+      
+      if (error.message.includes('network') || error.message.includes('Network')) {
+        errorMessage = 'Network error. Please check your connection.';
+      } else if (error.message.includes('authentication') || error.message.includes('token')) {
+        errorMessage = 'Session expired. Please login again.';
+        setTimeout(() => navigate('/login'), 2000);
+      } else if (error.message.includes('No seats available')) {
+        errorMessage = 'No seats available on this train.';
+      } else {
+        errorMessage = error.message || 'Booking failed. Please try again.';
+      }
+
+      toast({
+        title: 'Booking Failed',
+        description: errorMessage,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // Calculate travel time based on distance
+  const calculateTravelTime = (distance) => {
+    const totalMinutes = Math.round((distance / 60) * 60);
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    return { hours, minutes, totalMinutes };
+  };
+
+  // Calculate arrival time
+  const calculateArrivalTime = (departureTime, travelMinutes) => {
+    const [hours, mins] = departureTime.split(':').map(Number);
+    const totalMinutes = hours * 60 + mins + travelMinutes;
+    
+    const arrHours = Math.floor(totalMinutes / 60) % 24;
+    const arrMinutes = totalMinutes % 60;
+    
+    return `${arrHours.toString().padStart(2, '0')}:${arrMinutes.toString().padStart(2, '0')}`;
+  };
 
   if (!train) {
-    toast({
-      title: 'Train information not loaded',
-      variant: 'destructive',
-    });
-    return;
-  }
-
-  setIsProcessing(true);
-
-  try {
-    // Create ticket data
-    const ticketData = {
-      trainId: train.id,
-      passengerName: passengerName.trim(),
-      originStationId: fromStationId,
-      destinationStationId: toStationId,
-      travelDate: travelDate,
-      paymentMethod: paymentMethod,
-    };
-
-    console.log('🎫 Creating ticket with data:', ticketData);
-
-    // Add ticket to storage
-    console.log('📤 Calling addTicket API...');
-    const result = await addTicket(ticketData);
-    const ticket = result.ticket || result;
-    
-    console.log('✅ Ticket created successfully:', ticket);
-
-    toast({
-      title: 'Booking Confirmed! 🎉',
-      description: 'Your ticket has been booked successfully',
-    });
-
-    // Generate PDF with enhanced error handling
-    try {
-      console.log('🔄 Generating PDF...');
-      
-      // Ensure ticket has all required fields for PDF
-      const pdfTicketData = {
-        ...ticket,
-        train_name: train.name,
-        origin: train.origin,
-        destination: train.destination,
-        distance: train.distance,
-        price: train.calculatedPrice,
-        departure_time: '08:00 AM',
-        arrival_time: '04:00 PM',
-        travel_date: travelDate,
-        passenger_name: passengerName.trim(),
-        payment_method: paymentMethod,
-        payment_status: paymentMethod === 'cash' ? 'pending' : 'paid'
-      };
-      
-      await generateTicketPDF(pdfTicketData);
-      console.log('📄 PDF generated successfully');
-      
-    } catch (pdfError) {
-      console.error('PDF generation failed:', pdfError);
-      
-      // Don't fail the entire booking if PDF fails
-      toast({
-        title: 'Ticket booked! 📝',
-        description: 'PDF download failed, but you can view your ticket in My Tickets',
-        variant: 'default',
-      });
-    }
-    
-    // Navigate to my-tickets after a short delay
-    setTimeout(() => {
-      navigate('/my-tickets');
-    }, 2000);
-
-  } catch (error) {
-    console.error('❌ Booking error details:', error);
-    toast({
-      title: 'Booking failed',
-      description: error.response?.data?.error || error.message || 'Please try again',
-      variant: 'destructive',
-    });
-  } finally {
-    setIsProcessing(false);
-  }
-};
-
-  if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-accent/5 flex items-center justify-center">
         <div className="text-center">
@@ -229,18 +216,9 @@ const handleBooking = async () => {
     );
   }
 
-  if (!train) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-accent/5 flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-muted-foreground">Failed to load train details</p>
-          <Button onClick={() => navigate('/')} className="mt-4">
-            Back to Search
-          </Button>
-        </div>
-      </div>
-    );
-  }
+  const travelTime = calculateTravelTime(train.distance);
+  const arrivalTime = calculateArrivalTime('08:00', travelTime.totalMinutes);
+  const displayPrice = train.calculatedPrice || train.price;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-accent/5 py-8">
@@ -249,50 +227,67 @@ const handleBooking = async () => {
 
         <div className="grid lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 space-y-6">
+            {/* Train Details Card */}
             <Card className="p-6">
-              <h2 className="text-xl font-bold mb-4">Train Details</h2>
-              <div className="flex items-start gap-4">
-                <div className="bg-primary/10 p-3 rounded-lg">
-                  <Train className="h-6 w-6 text-primary" />
-                </div>
-                <div className="flex-1">
+              <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+                <Train className="h-5 w-5" />
+                Train Details
+              </h2>
+              <div className="space-y-4">
+                <div>
                   <h3 className="text-lg font-bold text-primary">{train.name}</h3>
-                  <p className="text-sm text-muted-foreground">{train.origin} → {train.destination}</p>
-                  <div className="grid md:grid-cols-3 gap-4 mt-4">
-                    <div className="flex items-center gap-2">
-                      <MapPin className="h-4 w-4 text-muted-foreground" />
-                      <div>
-                        <p className="text-sm font-medium">{train.origin}</p>
-                        <p className="text-xs text-muted-foreground">Departure</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Clock className="h-4 w-4 text-muted-foreground" />
-                      <div>
-                        <p className="text-sm font-medium">08:00 AM</p>
-                        <p className="text-xs text-muted-foreground">Time</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <CalendarIcon className="h-4 w-4 text-muted-foreground" />
-                      <div>
-                        <p className="text-sm font-medium">{new Date(travelDate).toLocaleDateString()}</p>
-                        <p className="text-xs text-muted-foreground">Date</p>
-                      </div>
+                  <div className="flex items-center gap-2 mt-1 text-sm text-muted-foreground">
+                    <Navigation className="h-4 w-4" />
+                    <span>{train.distance} km • ₹{train.price_per_km}/km</span>
+                  </div>
+                </div>
+
+                {/* Journey Timeline */}
+                <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
+                  <div className="text-center">
+                    <p className="text-lg font-semibold">08:00</p>
+                    <p className="text-sm text-muted-foreground mt-1">{train.origin}</p>
+                  </div>
+                  
+                  <div className="flex flex-col items-center flex-1 px-4">
+                    <div className="w-full h-1 bg-gradient-to-r from-primary to-accent rounded-full mb-2"></div>
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <Clock className="h-3 w-3" />
+                      <span>{travelTime.hours}h {travelTime.minutes}m</span>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 mt-3">
-                    <Navigation className="h-4 w-4 text-muted-foreground" />
-                    <p className="text-sm text-muted-foreground">
-                      Distance: {train.distance} km • ₹{train.price_per_km}/km
-                    </p>
+
+                  <div className="text-center">
+                    <p className="text-lg font-semibold">{arrivalTime}</p>
+                    <p className="text-sm text-muted-foreground mt-1">{train.destination}</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div className="flex items-center gap-2">
+                    <CalendarIcon className="h-4 w-4 text-muted-foreground" />
+                    <div>
+                      <p className="font-medium">Travel Date</p>
+                      <p className="text-muted-foreground">{new Date(train.travelDate).toLocaleDateString()}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <User className="h-4 w-4 text-muted-foreground" />
+                    <div>
+                      <p className="font-medium">Available Seats</p>
+                      <p className="text-muted-foreground">{train.available_seats}</p>
+                    </div>
                   </div>
                 </div>
               </div>
             </Card>
 
+            {/* Passenger Information Card */}
             <Card className="p-6">
-              <h2 className="text-xl font-bold mb-4">Passenger Information</h2>
+              <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+                <User className="h-5 w-5" />
+                Passenger Information
+              </h2>
               <div className="space-y-4">
                 <div>
                   <Label htmlFor="passengerName">Full Name *</Label>
@@ -307,6 +302,7 @@ const handleBooking = async () => {
               </div>
             </Card>
 
+            {/* Payment Method Card */}
             <Card className="p-6">
               <h2 className="text-xl font-bold mb-4">Payment Method</h2>
               <RadioGroup value={paymentMethod} onValueChange={setPaymentMethod}>
@@ -329,6 +325,7 @@ const handleBooking = async () => {
             </Card>
           </div>
 
+          {/* Booking Summary Card */}
           <div>
             <Card className="p-6 sticky top-8">
               <h2 className="text-xl font-bold mb-4">Booking Summary</h2>
@@ -336,7 +333,7 @@ const handleBooking = async () => {
               <div className="space-y-3 mb-6">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Base Fare</span>
-                  <span className="font-medium">₹{train.calculatedPrice}</span>
+                  <span className="font-medium">₹{displayPrice}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Service Fee</span>
@@ -344,10 +341,10 @@ const handleBooking = async () => {
                 </div>
                 <div className="flex justify-between text-lg font-bold border-t pt-3">
                   <span>Total Amount</span>
-                  <span className="text-primary">₹{train.calculatedPrice}</span>
+                  <span className="text-primary">₹{displayPrice}</span>
                 </div>
-                <div className="text-xs text-muted-foreground text-center">
-                  {train.distance} km × ₹{train.price_per_km}/km
+                <div className="text-xs text-muted-foreground text-center bg-muted/50 p-2 rounded">
+                  {train.distance} km × ₹{train.price_per_km}/km = ₹{displayPrice}
                 </div>
               </div>
 
@@ -355,13 +352,15 @@ const handleBooking = async () => {
                 className="w-full" 
                 size="lg"
                 onClick={handleBooking}
-                disabled={isProcessing || !passengerName.trim()}
+                disabled={isProcessing || !passengerName.trim() || train.available_seats === 0}
               >
                 {isProcessing ? (
                   <>
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
                     Processing...
                   </>
+                ) : train.available_seats === 0 ? (
+                  'Sold Out'
                 ) : (
                   <>
                     <IndianRupee className="h-4 w-4 mr-2" />
