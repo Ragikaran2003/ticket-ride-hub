@@ -1,11 +1,19 @@
-import { useEffect, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Train, Clock, MapPin, ArrowRight, IndianRupee, Navigation } from 'lucide-react';
-import { searchTrains, getStations } from '@/lib/storage';
-import { toast } from '@/hooks/use-toast';
+import { useEffect, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import {
+  Train,
+  Clock,
+  MapPin,
+  ArrowRight,
+  IndianRupee,
+  Navigation,
+  Users,
+} from "lucide-react";
+import { searchTrains, getStations } from "@/lib/storage";
+import { toast } from "@/hooks/use-toast";
 
 const SearchResults = () => {
   const navigate = useNavigate();
@@ -14,11 +22,11 @@ const SearchResults = () => {
   const [stations, setStations] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const origin = searchParams.get('origin') || '';
-  const destination = searchParams.get('destination') || '';
-  const date = searchParams.get('date') || '';
-  const fromStationId = searchParams.get('from') || '';
-  const toStationId = searchParams.get('to') || '';
+  const origin = searchParams.get("origin") || "";
+  const destination = searchParams.get("destination") || "";
+  const date = searchParams.get("date") || "";
+  const fromStationId = searchParams.get("from") || "";
+  const toStationId = searchParams.get("to") || "";
 
   useEffect(() => {
     loadSearchResults();
@@ -29,35 +37,41 @@ const SearchResults = () => {
       setIsLoading(true);
       const [trainsData, stationsData] = await Promise.all([
         searchTrains(fromStationId, toStationId, date),
-        getStations()
+        getStations(),
       ]);
 
-      console.log('🚆 Trains found:', trainsData);
+      console.log("🚆 Trains found:", trainsData);
 
-      // Use the distance and price directly from API response (no manual calculation needed)
+      // Use the data directly from API response
       const trainsWithDetails = trainsData.map((train) => {
         console.log(`🚆 Train ${train.name}:`, {
-          distance: train.distance, // Already calculated by backend
-          price: train.price, // Already calculated by backend
-          price_per_km: train.price_per_km
+          distance: train.distance,
+          price: train.price,
+          departure_time: train.departure_time,
+          arrival_time: train.arrival_time,
+          travel_time: train.travel_time,
+          available_seats: train.available_seats,
         });
-        
+
         return {
           ...train,
-          distance: train.distance, // Use backend-calculated distance
-          calculatedPrice: train.price // Use backend-calculated price
+          distance: train.distance,
+          calculatedPrice: train.price,
+          departureTime: train.departure_time || "08:00", // Use backend time or fallback
+          arrivalTime: train.arrival_time || "1:00", // Use backend time or fallback
+          travelTime: train.travel_time || "8h 0m", // Use backend time or fallback
         };
       });
 
-      console.log('✅ Trains with details:', trainsWithDetails);
+      console.log("✅ Trains with details:", trainsWithDetails);
       setTrains(trainsWithDetails);
       setStations(stationsData);
     } catch (error) {
-      console.error('❌ Search error:', error);
+      console.error("❌ Search error:", error);
       toast({
-        title: 'Failed to load trains',
-        description: 'Please try again',
-        variant: 'destructive',
+        title: "Failed to load trains",
+        description: "Please try again",
+        variant: "destructive",
       });
       setTrains([]);
     } finally {
@@ -66,29 +80,37 @@ const SearchResults = () => {
   };
 
   const handleBookNow = (train) => {
-    console.log('🎫 Book Now clicked for train:', train);
-    console.log('📅 Date to pass:', date);
-    
+    console.log("🎫 Book Now clicked for train:", train);
+    console.log("📅 Date to pass:", date);
+
     // Navigate to booking page with train data and ALL required parameters
     navigate(`/book/${train.id}`, {
       state: {
         trainData: {
           ...train,
-          travelDate: date, // Make sure date is included in trainData
+          travelDate: date,
           fromStationId: fromStationId,
           toStationId: toStationId,
           origin: origin,
-          destination: destination
+          destination: destination,
+          departureTime: train.departureTime,
+          arrivalTime: train.arrivalTime,
         },
         searchParams: {
-          date: date, // Pass date explicitly
+          date: date,
           from: fromStationId,
           to: toStationId,
           origin: origin,
-          destination: destination
-        }
-      }
+          destination: destination,
+        },
+      },
     });
+  };
+
+  // Format time for display (remove seconds if present)
+  const formatTime = (time) => {
+    if (!time) return "--:--";
+    return time.includes(":") ? time.split(":").slice(0, 2).join(":") : time;
   };
 
   if (isLoading) {
@@ -107,11 +129,14 @@ const SearchResults = () => {
       {/* Header */}
       <header className="border-b bg-card/50 backdrop-blur-sm">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate('/')}>
+          <div
+            className="flex items-center gap-2 cursor-pointer"
+            onClick={() => navigate("/")}
+          >
             <Train className="h-8 w-8 text-primary" />
             <h1 className="text-2xl font-bold text-primary">Ticket Ride Hub</h1>
           </div>
-          <Button variant="ghost" onClick={() => navigate('/')}>
+          <Button variant="ghost" onClick={() => navigate("/")}>
             Back to Search
           </Button>
         </div>
@@ -124,22 +149,37 @@ const SearchResults = () => {
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2">
                 <MapPin className="h-5 w-5 text-primary" />
-                <span className="font-semibold">{origin}</span>
+                <div>
+                  <span className="font-semibold block">{origin}</span>
+                  <span className="text-sm text-muted-foreground">
+                    Departure
+                  </span>
+                </div>
               </div>
               <ArrowRight className="h-5 w-5 text-muted-foreground" />
               <div className="flex items-center gap-2">
                 <MapPin className="h-5 w-5 text-accent" />
-                <span className="font-semibold">{destination}</span>
+                <div>
+                  <span className="font-semibold block">{destination}</span>
+                  <span className="text-sm text-muted-foreground">Arrival</span>
+                </div>
               </div>
             </div>
-            <Badge variant="outline" className="text-base">
-              {date ? new Date(date).toLocaleDateString('en-US', { 
-                weekday: 'short', 
-                year: 'numeric', 
-                month: 'short', 
-                day: 'numeric' 
-              }) : 'No date selected'}
-            </Badge>
+            <div className="text-right">
+              <Badge variant="outline" className="text-base mb-2">
+                {date
+                  ? new Date(date).toLocaleDateString("en-US", {
+                      weekday: "short",
+                      year: "numeric",
+                      month: "short",
+                      day: "numeric",
+                    })
+                  : "No date selected"}
+              </Badge>
+              <p className="text-sm text-muted-foreground">
+                {trains.length} train{trains.length !== 1 ? "s" : ""} found
+              </p>
+            </div>
           </div>
         </Card>
 
@@ -151,9 +191,7 @@ const SearchResults = () => {
             <p className="text-muted-foreground mb-6">
               Try searching with different stations or dates
             </p>
-            <Button onClick={() => navigate('/')}>
-              Back to Search
-            </Button>
+            <Button onClick={() => navigate("/")}>Back to Search</Button>
           </Card>
         ) : (
           <div className="space-y-4">
@@ -161,60 +199,114 @@ const SearchResults = () => {
               Available Trains ({trains.length})
             </h2>
             {trains.map((train) => {
-              const originStation = stations.find(s => s.id === fromStationId);
-              const destinationStation = stations.find(s => s.id === toStationId);
+              const originStation = stations.find(
+                (s) => s.id === fromStationId
+              );
+              const destinationStation = stations.find(
+                (s) => s.id === toStationId
+              );
 
               return (
-                <Card key={train.id} className="p-6 hover:shadow-lg transition-shadow">
+                <Card
+                  key={train.id}
+                  className="p-6 hover:shadow-lg transition-shadow border-l-4 border-l-primary"
+                >
                   <div className="flex items-center justify-between gap-6 flex-wrap">
-                    <div className="flex-1 min-w-[200px]">
-                      <h3 className="text-xl font-bold text-primary mb-1">{train.name}</h3>
-                      
-                      {/* Route Information */}
-                      <div className="flex items-center gap-2 mt-2 text-sm text-muted-foreground">
-                        <Navigation className="h-4 w-4" />
-                        <span>{train.distance} km • ₹{train.calculatedPrice} total fare</span>
+                    {/* Train Info */}
+                    <div className="flex-1 min-w-[250px]">
+                      <div className="flex items-center gap-3 mb-2">
+                        <div className="bg-primary/10 p-2 rounded-lg">
+                          <Train className="h-6 w-6 text-primary" />
+                        </div>
+                        <div>
+                          <h3 className="text-xl font-bold text-primary">
+                            {train.name}
+                          </h3>
+                          <div className="flex items-center gap-4 mt-1 text-sm text-muted-foreground">
+                            <div className="flex items-center gap-1">
+                              <Users className="h-4 w-4" />
+                              <span>{train.available_seats} seats</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Navigation className="h-4 w-4" />
+                              <span>{train.distance} km</span>
+                            </div>
+                            {train.travelTime && (
+                              <div className="flex items-center gap-1">
+                                <Clock className="h-4 w-4" />
+                                <span>{train.travelTime}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-8">
+                    {/* Schedule */}
+                    <div className="flex items-center gap-6">
                       <div className="text-center">
                         <div className="flex items-center gap-2 mb-1">
-                          <Clock className="h-4 w-4 text-muted-foreground" />
-                          <p className="text-lg font-semibold">08:00</p>
+                          <Clock className="h-4 w-4 text-green-600" />
+                          <p className="text-lg font-bold text-green-700">
+                            {formatTime(train.departureTime)}
+                          </p>
                         </div>
-                        <p className="text-sm text-muted-foreground">{originStation?.name}</p>
+                        <p className="text-sm font-medium">
+                          {originStation?.name}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Departure
+                        </p>
                       </div>
 
-                      <ArrowRight className="h-6 w-6 text-primary" />
+                      <div className="flex flex-col items-center">
+                        <ArrowRight className="h-5 w-5 text-primary mb-1" />
+                        <div className="bg-primary/10 px-2 py-1 rounded-full">
+                          <span className="text-xs font-medium text-primary">
+                            {train.travelTime || "--:--"}
+                          </span>
+                        </div>
+                      </div>
 
                       <div className="text-center">
                         <div className="flex items-center gap-2 mb-1">
-                          <Clock className="h-4 w-4 text-muted-foreground" />
-                          <p className="text-lg font-semibold">16:00</p>
+                          <Clock className="h-4 w-4 text-red-600" />
+                          <p className="text-lg font-bold text-red-700">
+                            {formatTime(train.arrivalTime)}
+                          </p>
                         </div>
-                        <p className="text-sm text-muted-foreground">{destinationStation?.name}</p>
+                        <p className="text-sm font-medium">
+                          {destinationStation?.name}
+                        </p>
+                        <p className="text-xs text-muted-foreground">Arrival</p>
                       </div>
                     </div>
 
-                    <div className="text-right">
-                      <div className="flex items-center gap-1 mb-2">
-                        <IndianRupee className="h-5 w-5" />
-                        <p className="text-2xl font-bold text-primary">{train.calculatedPrice}</p>
+                    {/* Price and Booking */}
+                    <div className="text-right min-w-[150px]">
+                      <div className="flex items-center justify-end gap-1 mb-2">
+                        <IndianRupee className="h-5 w-5 text-green-600" />
+                        <p className="text-2xl font-bold text-green-700">
+                          {train.calculatedPrice}
+                        </p>
                       </div>
-                      <p className="text-sm text-muted-foreground mb-1">
-                        {train.available_seats} seats available
-                      </p>
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-sm text-muted-foreground mb-3">
                         ₹{train.price_per_km}/km
                       </p>
                       <Button
                         onClick={() => handleBookNow(train)}
                         disabled={train.available_seats === 0}
-                        className="mt-2"
+                        className="w-full"
+                        size="lg"
                       >
-                        Book Now
+                        {train.available_seats === 0 ? "Sold Out" : "Book Now"}
                       </Button>
+                      {train.available_seats > 0 &&
+                        train.available_seats < 10 && (
+                          <p className="text-xs text-orange-600 mt-1">
+                            Only {train.available_seats} left!
+                          </p>
+                        )}
                     </div>
                   </div>
                 </Card>

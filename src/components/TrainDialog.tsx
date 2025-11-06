@@ -23,6 +23,8 @@ import {
   Trash2,
   MapPin,
   ArrowRight,
+  Clock,
+  Gauge,
 } from "lucide-react";
 import {
   getRoutesByTrain,
@@ -48,6 +50,8 @@ const TrainDialog = ({
     name: "",
     pricePerKm: "",
     availableSeats: "",
+    startTime: "",
+    speed: "60",
   });
   const [routeStations, setRouteStations] = useState([]);
   const [selectedStation, setSelectedStation] = useState("");
@@ -60,6 +64,8 @@ const TrainDialog = ({
         name: editingTrain.name,
         pricePerKm: editingTrain.price_per_km.toString(),
         availableSeats: editingTrain.available_seats.toString(),
+        startTime: editingTrain.start_time || "",
+        speed: editingTrain.speed?.toString() || "60",
       });
       loadTrainRoutes(editingTrain.id);
     } else if (open) {
@@ -72,6 +78,8 @@ const TrainDialog = ({
       name: "",
       pricePerKm: "",
       availableSeats: "",
+      startTime: "",
+      speed: "60",
     });
     setRouteStations([]);
     setSelectedStation("");
@@ -104,127 +112,208 @@ const TrainDialog = ({
     }
   };
 
-const handleSubmit = async () => {
-  console.log('🚀 Submitting train data...');
-  
-  // Validation
-  if (!formData.name.trim()) {
-    toast({
-      title: "Train name is required",
-      variant: "destructive",
+  // Calculate time to next station in minutes - FIXED: Round to whole number
+  const calculateTimeToNextStation = (distance, speed) => {
+    if (!distance || !speed) return 0;
+    return Math.round((distance / speed) * 60); // Convert to minutes and round
+  };
+
+  // Add minutes to time and return formatted time - FIXED: Remove decimals
+  const addMinutesToTime = (time, minutesToAdd) => {
+    const [hours, minutes] = time.split(':').map(Number);
+    const totalMinutes = hours * 60 + minutes + Math.round(minutesToAdd); // 🔥 Round minutes
+    const newHours = Math.floor(totalMinutes / 60) % 24;
+    const newMinutes = totalMinutes % 60;
+    return `${String(newHours).padStart(2, '0')}:${String(newMinutes).padStart(2, '0')}`;
+  };
+
+  // Format time to remove any decimals - NEW FUNCTION
+  const formatDisplayTime = (time) => {
+    if (!time) return '--:--';
+    // Remove any decimal points and format as HH:MM
+    const [hours, minutes] = time.split(':').map(part => {
+      // Take only the integer part before decimal
+      const integerPart = part.split('.')[0];
+      return parseInt(integerPart) || 0;
     });
-    return;
-  }
+    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+  };
 
-  if (!formData.pricePerKm || parseFloat(formData.pricePerKm) <= 0) {
-    toast({
-      title: "Valid price per km is required",
-      variant: "destructive",
-    });
-    return;
-  }
+  // Calculate arrival and departure times for all stations - FIXED
+  const calculateStationTimes = () => {
+    if (!formData.startTime || routeStations.length === 0) return routeStations;
 
-  if (!formData.availableSeats || parseInt(formData.availableSeats) <= 0) {
-    toast({
-      title: "Valid seat count is required",
-      variant: "destructive",
-    });
-    return;
-  }
-
-  if (routeStations.length < 2) {
-    toast({
-      title: "Please add at least 2 stations to the route",
-      variant: "destructive",
-    });
-    return;
-  }
-
-  try {
-    setIsLoading(true);
-    console.log('📝 Form data:', formData);
-    console.log('📍 Route stations:', routeStations);
-
-    const trainData = {
-      name: formData.name.trim(),
-      pricePerKm: parseFloat(formData.pricePerKm),
-      availableSeats: parseInt(formData.availableSeats),
+    const stationsWithTimes = [...routeStations];
+    const speed = parseFloat(formData.speed) || 60;
+    
+    // First station - format time to remove decimals
+    stationsWithTimes[0] = {
+      ...stationsWithTimes[0],
+      arrivalTime: formatDisplayTime(formData.startTime),
+      departureTime: formatDisplayTime(formData.startTime)
     };
 
-    console.log('🚂 Train data to save:', trainData);
-
-    let trainId;
-
-    if (editingTrain) {
-      console.log('✏️ Updating train:', editingTrain.id);
-      await updateTrain(editingTrain.id, trainData);
-      trainId = editingTrain.id;
+    // Calculate for subsequent stations
+    for (let i = 0; i < stationsWithTimes.length - 1; i++) {
+      const currentStation = stationsWithTimes[i];
+      const distance = currentStation.distanceToNext || 0;
       
-      console.log('✅ Train updated');
-      
-      // Update routes
-      console.log('🔄 Updating routes...');
-      const existingRoutes = await getRoutesByTrain(editingTrain.id);
-      console.log('🗑️ Deleting existing routes:', existingRoutes);
-      
-      for (const route of existingRoutes) {
-        await deleteRoute(route.id);
-      }
-      console.log('✅ Existing routes deleted');
-      
-    } else {
-      console.log('🆕 Creating new train...');
-      const newTrain = await addTrain(trainData);
-      console.log('✅ New train response:', newTrain);
-      
-      // Check if newTrain is defined and has an id
-      if (!newTrain) {
-        throw new Error('Failed to create train: No train ID returned from server');
-      }
-      
-      trainId = newTrain.id;
-      console.log('✅ New train created with ID:', trainId);
-    }
-
-    // Add routes
-    console.log('➕ Adding routes...');
-    for (const [index, station] of routeStations.entries()) {
-      const routeData = {
-        trainId: trainId,
-        stationId: station.id,
+      if (distance > 0) {
+        const travelTimeMinutes = calculateTimeToNextStation(distance, speed);
+        const arrivalTimeNext = addMinutesToTime(currentStation.departureTime, travelTimeMinutes);
         
-        distanceToNext: station.distanceToNext || 0,
-      };
-      console.log(`📍 Adding route ${index + 1}:`, routeData);
-      await addRoute(routeData);
+        const waitingTimeAtStation = 2;
+        const departureTimeNext = addMinutesToTime(arrivalTimeNext, waitingTimeAtStation);
+        
+        stationsWithTimes[i + 1] = {
+          ...stationsWithTimes[i + 1],
+          arrivalTime: formatDisplayTime(arrivalTimeNext), // 🔥 Format time
+          departureTime: formatDisplayTime(departureTimeNext) // 🔥 Format time
+        };
+      }
     }
-    console.log('✅ Routes added');
 
-    toast({ 
-      title: editingTrain ? "Train updated successfully" : "Train added successfully",
-      description: `${routeStations.length} stations in route.`
-    });
+    return stationsWithTimes;
+  };
 
-    console.log('✅ Train saved successfully');
-    onTrainSaved();
+  const handleSubmit = async () => {
+    console.log('🚀 Submitting train data...');
     
-  } catch (error) {
-    console.error('❌ Error saving train:', error);
-    console.error('Error details:', {
-      message: error.message,
-      stack: error.stack,
-      name: error.name
-    });
-    
-    toast({
-      title: 'Failed to save train',
-      description: error.message || 'Please check your input and try again',
-      variant: 'destructive',
-    });
-  } finally {
-    setIsLoading(false);
-  }
-};
+    // Validation
+    if (!formData.name.trim()) {
+      toast({
+        title: "Train name is required",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!formData.pricePerKm || parseFloat(formData.pricePerKm) <= 0) {
+      toast({
+        title: "Valid price per km is required",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!formData.availableSeats || parseInt(formData.availableSeats) <= 0) {
+      toast({
+        title: "Valid seat count is required",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!formData.startTime) {
+      toast({
+        title: "Start time is required",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!formData.speed || parseFloat(formData.speed) <= 0) {
+      toast({
+        title: "Valid speed is required",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (routeStations.length < 2) {
+      toast({
+        title: "Please add at least 2 stations to the route",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      console.log('📝 Form data:', formData);
+      console.log('📍 Route stations:', routeStations);
+
+      const trainData = {
+        name: formData.name.trim(),
+        pricePerKm: parseFloat(formData.pricePerKm),
+        availableSeats: parseInt(formData.availableSeats),
+        startTime: formData.startTime,
+        speed: parseFloat(formData.speed),
+      };
+
+      console.log('🚂 Train data to save:', trainData);
+
+      let trainId;
+
+      if (editingTrain) {
+        console.log('✏️ Updating train:', editingTrain.id);
+        await updateTrain(editingTrain.id, trainData);
+        trainId = editingTrain.id;
+        
+        console.log('✅ Train updated');
+        
+        // Update routes
+        console.log('🔄 Updating routes...');
+        const existingRoutes = await getRoutesByTrain(editingTrain.id);
+        console.log('🗑️ Deleting existing routes:', existingRoutes);
+        
+        for (const route of existingRoutes) {
+          await deleteRoute(route.id);
+        }
+        console.log('✅ Existing routes deleted');
+        
+      } else {
+        console.log('🆕 Creating new train...');
+        const newTrain = await addTrain(trainData);
+        console.log('✅ New train response:', newTrain);
+        
+        // Check if newTrain is defined and has an id
+        if (!newTrain) {
+          throw new Error('Failed to create train: No train ID returned from server');
+        }
+        
+        trainId = newTrain.id;
+        console.log('✅ New train created with ID:', trainId);
+      }
+
+      // Add routes
+      console.log('➕ Adding routes...');
+      for (const [index, station] of routeStations.entries()) {
+        const routeData = {
+          trainId: trainId,
+          stationId: station.id,
+          distanceToNext: station.distanceToNext || 0,
+        };
+        console.log(`📍 Adding route ${index + 1}:`, routeData);
+        await addRoute(routeData);
+      }
+      console.log('✅ Routes added');
+
+      toast({ 
+        title: editingTrain ? "Train updated successfully" : "Train added successfully",
+        description: `${routeStations.length} stations in route.`
+      });
+
+      console.log('✅ Train saved successfully');
+      onTrainSaved();
+      
+    } catch (error) {
+      console.error('❌ Error saving train:', error);
+      console.error('Error details:', {
+        message: error.message,
+        stack: error.stack,
+        name: error.name
+      });
+      
+      toast({
+        title: 'Failed to save train',
+        description: error.message || 'Please check your input and try again',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const addStationToRoute = () => {
     const station = stations.find((s) => s.id === selectedStation);
@@ -279,6 +368,8 @@ const handleSubmit = async () => {
     setRouteStations(updatedStations);
   };
 
+  const stationsWithTimes = calculateStationTimes();
+
   return (
     <Dialog
       open={open}
@@ -306,7 +397,7 @@ const handleSubmit = async () => {
         </DialogHeader>
 
         <div className="space-y-6">
-          <div className="grid md:grid-cols-3 gap-4">
+          <div className="grid md:grid-cols-4 gap-4">
             <div>
               <Label>Train Name *</Label>
               <Input
@@ -348,6 +439,36 @@ const handleSubmit = async () => {
                 min="1"
               />
             </div>
+            <div>
+              <Label>Start Time *</Label>
+              <Input
+                type="time"
+                value={formData.startTime}
+                onChange={(e) =>
+                  setFormData({ ...formData, startTime: e.target.value })
+                }
+                required
+              />
+            </div>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-4">
+            <div>
+              <Label>Average Speed (km/h) *</Label>
+              <div className="flex items-center gap-2">
+                <Gauge className="h-4 w-4 text-muted-foreground" />
+                <Input
+                  type="number"
+                  value={formData.speed}
+                  onChange={(e) =>
+                    setFormData({ ...formData, speed: e.target.value })
+                  }
+                  placeholder="60"
+                  min="1"
+                  required
+                />
+              </div>
+            </div>
           </div>
 
           <div className="border-t pt-6">
@@ -365,13 +486,31 @@ const handleSubmit = async () => {
                           {index + 1}
                         </div>
                         <MapPin className="h-4 w-4 text-primary" />
-                        <span className="font-medium">
-                          {station.name}
-                        </span>
-                        <span className="text-sm text-muted-foreground">
-                          ({station.code})
-                        </span>
+                        <div>
+                          <span className="font-medium block">
+                            {station.name}
+                          </span>
+                          <span className="text-sm text-muted-foreground">
+                            ({station.code})
+                          </span>
+                        </div>
                       </div>
+                      
+                      {/* Time Information - FIXED: Use formatted times */}
+                      <div className="text-right">
+                        {stationsWithTimes[index]?.arrivalTime && (
+                          <div className="flex items-center gap-2 text-sm bg-blue-100 px-2 py-1 rounded">
+                            <Clock className="h-3 w-3 text-blue-600" />
+                            <div className="text-blue-700">
+                              <div>Arr: {stationsWithTimes[index].arrivalTime}</div>
+                              {index < routeStations.length - 1 && (
+                                <div>Dep: {stationsWithTimes[index].departureTime}</div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                      
                       <Button
                         variant="outline"
                         size="icon"
@@ -408,12 +547,17 @@ const handleSubmit = async () => {
                           kilometers
                         </span>
                       </div>
-                      {station.distanceToNext > 0 && (
-                        <p className="text-xs text-blue-600 mt-1">
-                          Current: {station.distanceToNext} km from{" "}
-                          {station.name} to{" "}
-                          {routeStations[index + 1]?.name}
-                        </p>
+                      
+                      {/* Travel Time Information - FIXED: Use rounded values */}
+                      {formData.startTime && formData.speed && station.distanceToNext && (
+                        <div className="mt-2 p-2 bg-white rounded border">
+                          <div className="text-xs text-blue-600">
+                            <strong>Travel Time:</strong> {calculateTimeToNextStation(station.distanceToNext, formData.speed)} minutes
+                          </div>
+                          <div className="text-xs text-blue-600">
+                            <strong>Next Station Arrival:</strong> {stationsWithTimes[index + 1]?.arrivalTime || '--:--'}
+                          </div>
+                        </div>
                       )}
                     </div>
                   )}
@@ -531,7 +675,7 @@ const handleSubmit = async () => {
             {routeStations.length > 0 && (
               <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
                 <h4 className="text-sm font-semibold text-green-800 mb-2">
-                  Route Summary
+                  Route Summary & Timetable
                 </h4>
                 <div className="text-sm text-green-700 space-y-1">
                   <p>
@@ -548,31 +692,36 @@ const handleSubmit = async () => {
                     }, 0)}{" "}
                     km
                   </p>
-                  <p>
-                    <strong>Route:</strong>
-                  </p>
-                  <div className="bg-white p-3 rounded border">
-                    <div className="flex items-center flex-wrap gap-2">
-                      {routeStations.map((station, index) => (
-                        <div
-                          key={index}
-                          className="flex items-center gap-2"
-                        >
-                          <span className="font-medium">
-                            {station.name}
-                          </span>
-                          {index < routeStations.length - 1 && (
-                            <>
-                              <ArrowRight className="h-3 w-3 text-green-600" />
-                              <span className="text-xs text-green-600 bg-green-100 px-2 py-1 rounded">
-                                {station.distanceToNext || 0} km
-                              </span>
-                            </>
-                          )}
+                  
+                  {formData.startTime && formData.speed && (
+                    <>
+                      <p><strong>Start Time:</strong> {formData.startTime}</p>
+                      <p><strong>Average Speed:</strong> {formData.speed} km/h</p>
+                      
+                      {/* Timetable - FIXED: Use formatted times */}
+                      <p><strong>Timetable:</strong></p>
+                      <div className="bg-white p-3 rounded border">
+                        <div className="space-y-2">
+                          {stationsWithTimes.map((station, index) => (
+                            <div key={index} className="flex items-center justify-between border-b pb-2 last:border-b-0">
+                              <div className="flex items-center gap-2">
+                                <div className="bg-primary text-white rounded-full w-5 h-5 flex items-center justify-center text-xs">
+                                  {index + 1}
+                                </div>
+                                <span className="font-medium">{station.name}</span>
+                              </div>
+                              <div className="text-right">
+                                <div>Arr: {station.arrivalTime}</div>
+                                {index < routeStations.length - 1 && (
+                                  <div>Dep: {station.departureTime}</div>
+                                )}
+                              </div>
+                            </div>
+                          ))}
                         </div>
-                      ))}
-                    </div>
-                  </div>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
             )}

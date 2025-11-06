@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Plus, Edit2, Trash2 } from "lucide-react";
+import { Plus, Edit2, Trash2, Clock, Gauge } from "lucide-react";
 import { deleteTrain } from "@/lib/storage";
 import { useToast } from "@/hooks/use-toast";
 import TrainDialog from "./TrainDialog";
@@ -73,6 +73,20 @@ const TrainManagement = ({ trains, stations, onDataUpdate }) => {
                 <p className="text-sm text-muted-foreground mt-1">
                   ₹{train.price_per_km}/km • {train.available_seats} seats available
                 </p>
+                <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
+                  {train.startTime && (
+                    <div className="flex items-center gap-1">
+                      <Clock className="h-4 w-4" />
+                      <span>Starts: {train.startTime}</span>
+                    </div>
+                  )}
+                  {train.speed && (
+                    <div className="flex items-center gap-1">
+                      <Gauge className="h-4 w-4" />
+                      <span>Speed: {train.speed} km/h</span>
+                    </div>
+                  )}
+                </div>
               </div>
               <div className="flex gap-2">
                 <Button

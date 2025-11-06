@@ -1,27 +1,41 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import { Label } from '@/components/ui/label';
-import { Calendar as CalendarComponent } from '@/components/ui/calendar';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Calendar, Train, MapPin, Search, Clock, Shield, Ticket, Users } from 'lucide-react';
-import { format } from 'date-fns';
-import { cn } from '@/lib/utils';
-import { getStations } from '@/lib/storage';
-import { useToast } from '@/hooks/use-toast';
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Calendar,
+  Train,
+  MapPin,
+  Search,
+  Clock,
+  Shield,
+  Ticket,
+  Users,
+} from "lucide-react";
+import { format } from "date-fns";
+import { cn } from "@/lib/utils";
+import { getStations } from "@/lib/storage";
+import { useToast } from "@/hooks/use-toast";
 
-// Custom Select with Search Component
+// ✅ Custom Station Selector
 const StationSelect = ({ value, onValueChange, placeholder, stations }) => {
   const [open, setOpen] = useState(false);
-  const [searchValue, setSearchValue] = useState('');
+  const [searchValue, setSearchValue] = useState("");
 
-  const filteredStations = stations.filter(station =>
-    station.name.toLowerCase().includes(searchValue.toLowerCase()) ||
-    station.code.toLowerCase().includes(searchValue.toLowerCase())
+  const filteredStations = stations.filter(
+    (station) =>
+      station.name.toLowerCase().includes(searchValue.toLowerCase()) ||
+      station.code.toLowerCase().includes(searchValue.toLowerCase())
   );
 
-  const selectedStation = stations.find(station => station.id === value);
+  const selectedStation = stations.find((station) => station.id === value);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -33,7 +47,9 @@ const StationSelect = ({ value, onValueChange, placeholder, stations }) => {
           className="w-full justify-between"
         >
           {selectedStation ? (
-            <span>{selectedStation.name} ({selectedStation.code})</span>
+            <span>
+              {selectedStation.name} ({selectedStation.code})
+            </span>
           ) : (
             <span className="text-muted-foreground">{placeholder}</span>
           )}
@@ -66,12 +82,14 @@ const StationSelect = ({ value, onValueChange, placeholder, stations }) => {
                 onClick={() => {
                   onValueChange(station.id);
                   setOpen(false);
-                  setSearchValue('');
+                  setSearchValue("");
                 }}
               >
                 <div className="flex flex-col items-start">
                   <span>{station.name}</span>
-                  <span className="text-xs text-muted-foreground">{station.code}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {station.code}
+                  </span>
                 </div>
               </button>
             ))
@@ -85,9 +103,9 @@ const StationSelect = ({ value, onValueChange, placeholder, stations }) => {
 const Home = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [origin, setOrigin] = useState('');
-  const [destination, setDestination] = useState('');
-  const [date, setDate] = useState(null);
+  const [origin, setOrigin] = useState("");
+  const [destination, setDestination] = useState("");
+  const [date, setDate] = useState<Date | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [stations, setStations] = useState([]);
 
@@ -100,53 +118,56 @@ const Home = () => {
       const stationsData = await getStations();
       setStations(stationsData);
     } catch (error) {
-      console.error('Error loading stations:', error);
+      console.error("Error loading stations:", error);
       toast({
-        title: 'Failed to load stations',
-        description: 'Please try again later',
-        variant: 'destructive',
+        title: "Failed to load stations",
+        description: "Please try again later.",
+        variant: "destructive",
       });
     }
   };
 
   const handleSearch = async () => {
     if (!origin || !destination) {
-      toast({
-        title: 'Please select origin and destination stations',
-        variant: 'destructive',
+      return toast({
+        title: "Please select origin and destination stations.",
+        variant: "destructive",
       });
-      return;
     }
 
     if (!date) {
-      toast({
-        title: 'Please select travel date',
-        variant: 'destructive',
+      return toast({
+        title: "Please select a travel date.",
+        variant: "destructive",
       });
-      return;
     }
 
     if (origin === destination) {
-      toast({
-        title: 'Origin and destination cannot be the same',
-        variant: 'destructive',
+      return toast({
+        title: "Origin and destination cannot be the same.",
+        variant: "destructive",
       });
-      return;
     }
 
     setIsLoading(true);
-    
+
     try {
-      const originStation = stations.find(s => s.id === origin);
-      const destinationStation = stations.find(s => s.id === destination);
-      
-      navigate(`/search?origin=${encodeURIComponent(originStation.name)}&destination=${encodeURIComponent(destinationStation.name)}&date=${format(date, 'yyyy-MM-dd')}&from=${origin}&to=${destination}`);
+      const originStation = stations.find((s) => s.id === origin);
+      const destinationStation = stations.find((s) => s.id === destination);
+
+      navigate(
+        `/search?origin=${encodeURIComponent(
+          originStation.name
+        )}&destination=${encodeURIComponent(
+          destinationStation.name
+        )}&date=${format(date, "yyyy-MM-dd")}&from=${origin}&to=${destination}`
+      );
     } catch (error) {
-      console.error('Search error:', error);
+      console.error("Search error:", error);
       toast({
-        title: 'Search failed',
-        description: 'Please try again',
-        variant: 'destructive',
+        title: "Search failed",
+        description: "Please try again later.",
+        variant: "destructive",
       });
     } finally {
       setIsLoading(false);
@@ -156,24 +177,24 @@ const Home = () => {
   const features = [
     {
       icon: <Ticket className="h-8 w-8" />,
-      title: 'Easy Booking',
-      description: 'Book your train tickets in just a few clicks'
+      title: "Easy Booking",
+      description: "Book your train tickets in just a few clicks.",
     },
     {
       icon: <Clock className="h-8 w-8" />,
-      title: 'Real-time Status',
-      description: 'Get live train status and seat availability'
+      title: "Real-time Status",
+      description: "Check live train status and seat availability.",
     },
     {
       icon: <Shield className="h-8 w-8" />,
-      title: 'Secure Payment',
-      description: 'Multiple secure payment options available'
+      title: "Secure Payment",
+      description: "Enjoy safe and reliable payment options.",
     },
     {
       icon: <Users className="h-8 w-8" />,
-      title: '24/7 Support',
-      description: 'Round-the-clock customer support'
-    }
+      title: "24/7 Support",
+      description: "Get round-the-clock assistance anytime.",
+    },
   ];
 
   return (
@@ -184,10 +205,12 @@ const Home = () => {
           <div className="text-center mb-16">
             <div className="flex items-center justify-center gap-3 mb-6">
               <Train className="h-12 w-12 text-primary" />
-              <h1 className="text-5xl font-bold text-primary">Ticket Ride Hub</h1>
+              <h1 className="text-5xl font-bold text-primary">
+                Sri Lanka Train Ticket Booking System
+              </h1>
             </div>
             <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              Your journey begins here. Book train tickets effortlessly and travel with confidence across India.
+              Start your journey with ease. Book your train tickets effortlessly and travel confidently across Sri Lanka.
             </p>
           </div>
 
@@ -234,7 +257,7 @@ const Home = () => {
                       mode="single"
                       selected={date}
                       onSelect={setDate}
-                      disabled={(date) => date < new Date()}
+                      disabled={(d) => d < new Date()}
                       initialFocus
                     />
                   </PopoverContent>
@@ -243,8 +266,8 @@ const Home = () => {
 
               <div className="space-y-2">
                 <Label className="invisible">Search</Label>
-                <Button 
-                  className="w-full" 
+                <Button
+                  className="w-full"
                   onClick={handleSearch}
                   disabled={isLoading}
                 >
@@ -269,17 +292,22 @@ const Home = () => {
       {/* Features Section */}
       <section className="py-16 px-4 bg-card">
         <div className="container mx-auto max-w-6xl">
-          <h2 className="text-3xl font-bold text-center mb-12 text-primary">Why Choose Ticket Ride Hub?</h2>
+          <h2 className="text-3xl font-bold text-center mb-12 text-primary">
+            Why Choose Sri Lanka Ticket Hub?
+          </h2>
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
             {features.map((feature, index) => (
-              <Card key={index} className="p-6 text-center border-primary/10 hover:border-primary/30 transition-all">
+              <Card
+                key={index}
+                className="p-6 text-center border-primary/10 hover:border-primary/30 transition-all"
+              >
                 <div className="bg-primary/10 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <div className="text-primary">
-                    {feature.icon}
-                  </div>
+                  <div className="text-primary">{feature.icon}</div>
                 </div>
                 <h3 className="text-lg font-bold mb-2">{feature.title}</h3>
-                <p className="text-sm text-muted-foreground">{feature.description}</p>
+                <p className="text-sm text-muted-foreground">
+                  {feature.description}
+                </p>
               </Card>
             ))}
           </div>

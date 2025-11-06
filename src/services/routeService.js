@@ -25,16 +25,12 @@ export const routeService = {
     const response = await api.delete(`/routes/${id}`);
     return response.data;
   },
-
+ 
   // Calculate distance between stations
   calculateDistance: async (trainId, originStationId, destinationStationId) => {
     console.log('📍 Client-side distance calculation');
     
-    const stationMap = {
-      'station-001': 1, 'station-002': 2, 'station-003': 3, 
-      'station-004': 4, 'station-005': 5, 'station-006': 6,
-      'station-007': 7, 'station-008': 8
-    };
+    const stationMap = {};
     
     const fromNum = stationMap[originStationId] || 1;
     const toNum = stationMap[destinationStationId] || 2;

@@ -77,142 +77,176 @@ const Booking = () => {
     initializeBooking();
   }, [user, navigate, toast, location.state]);
 
-  const handleBooking = async () => {
-    if (!passengerName.trim()) {
-      toast({
-        title: 'Please enter passenger name',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    if (!train) {
-      toast({
-        title: 'Train information not loaded',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    setIsProcessing(true);
-
-    try {
-      // Create ticket data
-      const ticketData = {
-        trainId: train.id,
-        passengerName: passengerName.trim(),
-        originStationId: train.fromStationId,
-        destinationStationId: train.toStationId,
-        travelDate: train.travelDate,
-        paymentMethod: paymentMethod,
-      };
-
-      console.log('🎫 Creating ticket with data:', ticketData);
-      console.log('💰 Expected price:', train.calculatedPrice || train.price);
-      console.log('📏 Expected distance:', train.distance);
-
-      // Add ticket to storage
-      const result = await addTicket(ticketData);
-      
-      const ticket = result.ticket || result;
-      
-      if (!ticket) {
-        throw new Error('No ticket data received from server');
-      }
-
-      console.log('✅ Ticket created successfully:', ticket);
-
-      toast({
-        title: 'Booking Confirmed! 🎉',
-        description: 'Your ticket has been booked successfully',
-      });
-
-      // Generate PDF
-      try {
-        const pdfTicketData = {
-          ...ticket,
-          train_name: train.name,
-          origin_name: train.origin,
-          destination_name: train.destination,
-          distance: ticket.distance || train.distance,
-          price: ticket.price || train.calculatedPrice || train.price,
-          departure_time: '08:00 AM',
-          arrival_time: '04:00 PM',
-          travel_date: train.travelDate,
-          passenger_name: passengerName.trim(),
-          payment_method: paymentMethod,
-          payment_status: paymentMethod === 'cash' ? 'pending' : 'paid'
-        };
-        
-        await generateTicketPDF(pdfTicketData);
-        console.log('📄 PDF generated successfully');
-        
-      } catch (pdfError) {
-        console.error('PDF generation failed:', pdfError);
-        toast({
-          title: 'Ticket booked! 📝',
-          description: 'PDF download failed, but you can view your ticket in My Tickets',
-          variant: 'default',
-        });
-      }
-      
-      setTimeout(() => {
-        navigate('/my-tickets');
-      }, 2000);
-
-    } catch (error) {
-      console.error('❌ Booking error details:', error);
-      
-      let errorMessage = 'Booking failed. Please try again.';
-      
-      if (error.message.includes('network') || error.message.includes('Network')) {
-        errorMessage = 'Network error. Please check your connection.';
-      } else if (error.message.includes('authentication') || error.message.includes('token')) {
-        errorMessage = 'Session expired. Please login again.';
-        setTimeout(() => navigate('/login'), 2000);
-      } else if (error.message.includes('No seats available')) {
-        errorMessage = 'No seats available on this train.';
-      } else {
-        errorMessage = error.message || 'Booking failed. Please try again.';
-      }
-
-       if (error.response?.data?.error?.includes('already booked')) {
-    // Show specific duplicate booking error
+ const handleBooking = async () => {
+  if (!passengerName.trim()) {
     toast({
-      title: 'Duplicate Booking',
-      description: error.response.data.error,
-      variant: 'destructive'
+      title: 'Please enter passenger name',
+      variant: 'destructive',
     });
-  } else {
-    // Other errors
-    toast({
-      title: 'Booking Failed',
-      description: error.response?.data?.error || 'Please try again',
-      variant: 'destructive'
-    });
+    return;
   }
-    } finally {
-      setIsProcessing(false);
+
+  if (!train) {
+    toast({
+      title: 'Train information not loaded',
+      variant: 'destructive',
+    });
+    return;
+  }
+
+  setIsProcessing(true);
+
+  try {
+    // Use actual times from backend or fallback to calculated times
+    const departureTime = formatTime(train.departureTime || train.departure_time || '08:00');
+    const arrivalTime = formatTime(train.arrivalTime || train.arrival_time || '16:00');
+    const displayPrice = train.calculatedPrice || train.price;
+    const distance = train.distance || 100; // Default fallback
+
+    console.log('🚂 Train data for booking:', train);
+
+    // Create complete ticket data
+    const ticketData = {
+      trainId: train.id,
+      passengerName: passengerName.trim(),
+      originStationId: train.fromStationId || train.origin_station_id,
+      destinationStationId: train.toStationId || train.destination_station_id,
+      travelDate: train.travelDate,
+      paymentMethod: paymentMethod,
+      price: displayPrice,
+      distance: distance,
+      departureTime: departureTime,
+      arrivalTime: arrivalTime,
+      paymentStatus: paymentMethod === 'cash' ? 'pending' : 'paid'
+    };
+
+    console.log('🎫 Creating ticket with data:', ticketData);
+
+    // Add ticket to storage
+    const result = await addTicket(ticketData);
+    
+    console.log('📦 Add ticket result:', result);
+    
+    const ticket = result.ticket || result;
+    
+    if (!ticket) {
+      throw new Error('No ticket data received from addTicket function');
     }
+
+    if (ticket.error) {
+      throw new Error(ticket.error);
+    }
+
+    console.log('✅ Ticket created successfully:', ticket);
+
+    toast({
+      title: 'Booking Confirmed! 🎉',
+      description: 'Your ticket has been booked successfully',
+    });
+
+    // Generate PDF with actual timing data
+    try {
+      const pdfTicketData = {
+        ...ticket,
+        id: ticket.id || ticket.booking_code,
+        train_name: train.name,
+        origin_name: train.origin,
+        destination_name: train.destination,
+        distance: ticket.distance || distance,
+        price: ticket.price || displayPrice,
+        departure_time: departureTime,
+        arrival_time: arrivalTime,
+        travel_date: train.travelDate,
+        passenger_name: passengerName.trim(),
+        payment_method: paymentMethod,
+        payment_status: paymentMethod === 'cash' ? 'pending' : 'paid',
+        booking_code: ticket.booking_code || `TKT${Date.now()}`
+      };
+      
+      await generateTicketPDF(pdfTicketData);
+      console.log('📄 PDF generated successfully');
+      
+    } catch (pdfError) {
+      console.error('PDF generation failed:', pdfError);
+      toast({
+        title: 'Ticket booked! 📝',
+        description: 'PDF download failed, but you can view your ticket in My Tickets',
+        variant: 'default',
+      });
+    }
+    
+    setTimeout(() => {
+      navigate('/my-tickets');
+    }, 2000);
+
+  } catch (error) {
+    console.error('❌ Booking error details:', error);
+    console.error('❌ Error response:', error.response);
+    console.error('❌ Error message:', error.message);
+    
+    // Check for specific error types
+    if (error.message?.includes('already booked') || error.response?.data?.error?.includes('already booked')) {
+      toast({
+        title: 'Duplicate Booking',
+        description: 'You have already booked a ticket for this train on the selected date',
+        variant: 'destructive'
+      });
+    } else if (error.message?.includes('No ticket data')) {
+      toast({
+        title: 'Booking Failed',
+        description: 'Ticket was not created properly. Please try again.',
+        variant: 'destructive'
+      });
+    } else if (error.response?.data?.error) {
+      toast({
+        title: 'Booking Failed',
+        description: error.response.data.error,
+        variant: 'destructive'
+      });
+    } else {
+      toast({
+        title: 'Booking Failed',
+        description: error.message || 'Please try again',
+        variant: 'destructive'
+      });
+    }
+  } finally {
+    setIsProcessing(false);
+  }
+};
+
+  // Format time for display
+  const formatTime = (time) => {
+    if (!time) return '--:--';
+    // Remove seconds if present and format as HH:MM
+    return time.includes(':') ? time.split(':').slice(0, 2).join(':') : time;
   };
 
-  // Calculate travel time based on distance
-  const calculateTravelTime = (distance) => {
-    const totalMinutes = Math.round((distance / 60) * 60);
+  // Calculate travel time from departure and arrival times
+  const calculateTravelDuration = (departureTime, arrivalTime) => {
+    if (!departureTime || !arrivalTime) {
+      return { hours: 0, minutes: 0, display: '--:--' };
+    }
+
+    const [depHours, depMins] = departureTime.split(':').map(Number);
+    const [arrHours, arrMins] = arrivalTime.split(':').map(Number);
+
+    let totalMinutes = (arrHours * 60 + arrMins) - (depHours * 60 + depMins);
+    
+    // Handle overnight travel
+    if (totalMinutes < 0) {
+      totalMinutes += 24 * 60;
+    }
+
     const hours = Math.floor(totalMinutes / 60);
     const minutes = totalMinutes % 60;
-    return { hours, minutes, totalMinutes };
-  };
 
-  // Calculate arrival time
-  const calculateArrivalTime = (departureTime, travelMinutes) => {
-    const [hours, mins] = departureTime.split(':').map(Number);
-    const totalMinutes = hours * 60 + mins + travelMinutes;
-    
-    const arrHours = Math.floor(totalMinutes / 60) % 24;
-    const arrMinutes = totalMinutes % 60;
-    
-    return `${arrHours.toString().padStart(2, '0')}:${arrMinutes.toString().padStart(2, '0')}`;
+    return {
+      hours,
+      minutes,
+      display: `${hours}h ${minutes}m`,
+      totalMinutes
+    };
   };
 
   if (!train) {
@@ -226,8 +260,10 @@ const Booking = () => {
     );
   }
 
-  const travelTime = calculateTravelTime(train.distance);
-  const arrivalTime = calculateArrivalTime('08:00', travelTime.totalMinutes);
+  // Use actual times from backend or fallback to calculated times
+  const departureTime = formatTime(train.departureTime || train.departure_time);
+  const arrivalTime = formatTime(train.arrivalTime || train.arrival_time);
+  const travelDuration = calculateTravelDuration(departureTime, arrivalTime);
   const displayPrice = train.calculatedPrice || train.price;
 
   return (
@@ -255,21 +291,23 @@ const Booking = () => {
                 {/* Journey Timeline */}
                 <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
                   <div className="text-center">
-                    <p className="text-lg font-semibold">08:00</p>
+                    <p className="text-lg font-semibold text-green-700">{departureTime}</p>
                     <p className="text-sm text-muted-foreground mt-1">{train.origin}</p>
+                    <p className="text-xs text-green-600 mt-1">Departure</p>
                   </div>
                   
                   <div className="flex flex-col items-center flex-1 px-4">
-                    <div className="w-full h-1 bg-gradient-to-r from-primary to-accent rounded-full mb-2"></div>
+                    <div className="w-full h-1 bg-gradient-to-r from-green-600 to-red-600 rounded-full mb-2"></div>
                     <div className="flex items-center gap-1 text-xs text-muted-foreground">
                       <Clock className="h-3 w-3" />
-                      <span>{travelTime.hours}h {travelTime.minutes}m</span>
+                      <span>{travelDuration.display}</span>
                     </div>
                   </div>
 
                   <div className="text-center">
-                    <p className="text-lg font-semibold">{arrivalTime}</p>
+                    <p className="text-lg font-semibold text-red-700">{arrivalTime}</p>
                     <p className="text-sm text-muted-foreground mt-1">{train.destination}</p>
+                    <p className="text-xs text-red-600 mt-1">Arrival</p>
                   </div>
                 </div>
 
@@ -278,14 +316,27 @@ const Booking = () => {
                     <CalendarIcon className="h-4 w-4 text-muted-foreground" />
                     <div>
                       <p className="font-medium">Travel Date</p>
-                      <p className="text-muted-foreground">{new Date(train.travelDate).toLocaleDateString()}</p>
+                      <p className="text-muted-foreground">
+                        {new Date(train.travelDate).toLocaleDateString('en-US', {
+                          weekday: 'long',
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric'
+                        })}
+                      </p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
                     <User className="h-4 w-4 text-muted-foreground" />
                     <div>
                       <p className="font-medium">Available Seats</p>
-                      <p className="text-muted-foreground">{train.available_seats}</p>
+                      <p className={`font-medium ${
+                        train.available_seats > 10 ? 'text-green-600' : 
+                        train.available_seats > 0 ? 'text-orange-600' : 
+                        'text-red-600'
+                      }`}>
+                        {train.available_seats} {train.available_seats === 1 ? 'seat' : 'seats'}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -306,8 +357,11 @@ const Booking = () => {
                     value={passengerName}
                     onChange={(e) => setPassengerName(e.target.value)}
                     placeholder="Enter passenger name"
-                    className="mt-1"
+                    className="mt-1" disabled
                   />
+                </div>
+                <div className="text-sm text-muted-foreground" >
+                  <p>Booking for: <span className="font-medium">{user.name}</span> ({user.email})</p>
                 </div>
               </div>
             </Card>
@@ -342,11 +396,15 @@ const Booking = () => {
               
               <div className="space-y-3 mb-6">
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Base Fare</span>
+                  <span className="text-muted-foreground">Train Fare</span>
                   <span className="font-medium">₹{displayPrice}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Service Fee</span>
+                  <span className="font-medium">₹0</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Taxes</span>
                   <span className="font-medium">₹0</span>
                 </div>
                 <div className="flex justify-between text-lg font-bold border-t pt-3">
@@ -355,6 +413,21 @@ const Booking = () => {
                 </div>
                 <div className="text-xs text-muted-foreground text-center bg-muted/50 p-2 rounded">
                   {train.distance} km × ₹{train.price_per_km}/km = ₹{displayPrice}
+                </div>
+              </div>
+
+              <div className="space-y-3 mb-6 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Departure</span>
+                  <span className="font-medium">{departureTime}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Arrival</span>
+                  <span className="font-medium">{arrivalTime}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Duration</span>
+                  <span className="font-medium">{travelDuration.display}</span>
                 </div>
               </div>
 
@@ -373,11 +446,17 @@ const Booking = () => {
                   'Sold Out'
                 ) : (
                   <>
-                    <IndianRupee className="h-4 w-4 mr-2" />
+                    
                     Confirm Booking
                   </>
                 )}
               </Button>
+
+              {train.available_seats > 0 && train.available_seats < 5 && (
+                <p className="text-xs text-orange-600 text-center mt-2">
+                  Only {train.available_seats} seat{train.available_seats !== 1 ? 's' : ''} left!
+                </p>
+              )}
 
               <p className="text-xs text-muted-foreground text-center mt-4">
                 By confirming, you agree to our terms and conditions
