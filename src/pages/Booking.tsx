@@ -5,10 +5,11 @@ import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Train, Clock, MapPin, IndianRupee, Calendar as CalendarIcon, Navigation, User } from 'lucide-react';
+import { Train, Clock, MapPin, IndianRupee, Calendar as CalendarIcon, Navigation, User, Hourglass } from 'lucide-react';
 import { addTicket, getCurrentUser } from '@/lib/storage';
 import { generateTicketPDF } from '@/lib/pdfGenerator';
 import { useToast } from '@/hooks/use-toast';
+import { formatTime, calculateTravelDuration , STATION_WAITING_TIME } from '@/utils/timeCalculations';
 
 const Booking = () => {
   const navigate = useNavigate();
@@ -98,10 +99,10 @@ const Booking = () => {
 
   try {
     // Use actual times from backend or fallback to calculated times
-    const departureTime = formatTime(train.departureTime || train.departure_time || '08:00');
-    const arrivalTime = formatTime(train.arrivalTime || train.arrival_time || '16:00');
-    const displayPrice = train.calculatedPrice || train.price;
-    const distance = train.distance || 100; // Default fallback
+    const departureTime = formatTime(train.departureTime || train.departure_time);
+    const arrivalTime = formatTime(train.arrivalTime || train.arrival_time);
+    const displayPrice = train.price;
+    const distance = train.distance; // Default fallback
 
     console.log('🚂 Train data for booking:', train);
 
@@ -147,23 +148,22 @@ const Booking = () => {
     // Generate PDF with actual timing data
     try {
       const pdfTicketData = {
-        ...ticket,
         id: ticket.id || ticket.booking_code,
         train_name: train.name,
         origin_name: train.origin,
         destination_name: train.destination,
         distance: ticket.distance || distance,
-        price: ticket.price || displayPrice,
+        price: ticket.price,
         departure_time: departureTime,
         arrival_time: arrivalTime,
         travel_date: train.travelDate,
         passenger_name: passengerName.trim(),
         payment_method: paymentMethod,
         payment_status: paymentMethod === 'cash' ? 'pending' : 'paid',
-        booking_code: ticket.booking_code || `TKT${Date.now()}`
+        booking_code: ticket.booking_code 
       };
       
-      await generateTicketPDF(pdfTicketData);
+      // await generateTicketPDF(pdfTicketData);
       console.log('📄 PDF generated successfully');
       
     } catch (pdfError) {
@@ -215,40 +215,6 @@ const Booking = () => {
   }
 };
 
-  // Format time for display
-  const formatTime = (time) => {
-    if (!time) return '--:--';
-    // Remove seconds if present and format as HH:MM
-    return time.includes(':') ? time.split(':').slice(0, 2).join(':') : time;
-  };
-
-  // Calculate travel time from departure and arrival times
-  const calculateTravelDuration = (departureTime, arrivalTime) => {
-    if (!departureTime || !arrivalTime) {
-      return { hours: 0, minutes: 0, display: '--:--' };
-    }
-
-    const [depHours, depMins] = departureTime.split(':').map(Number);
-    const [arrHours, arrMins] = arrivalTime.split(':').map(Number);
-
-    let totalMinutes = (arrHours * 60 + arrMins) - (depHours * 60 + depMins);
-    
-    // Handle overnight travel
-    if (totalMinutes < 0) {
-      totalMinutes += 24 * 60;
-    }
-
-    const hours = Math.floor(totalMinutes / 60);
-    const minutes = totalMinutes % 60;
-
-    return {
-      hours,
-      minutes,
-      display: `${hours}h ${minutes}m`,
-      totalMinutes
-    };
-  };
-
   if (!train) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-accent/5 flex items-center justify-center">
@@ -285,6 +251,10 @@ const Booking = () => {
                   <div className="flex items-center gap-2 mt-1 text-sm text-muted-foreground">
                     <Navigation className="h-4 w-4" />
                     <span>{train.distance} km • ₹{train.price_per_km}/km</span>
+                    <div className="flex items-center gap-1 bg-orange-100 text-orange-700 px-2 py-1 rounded-full">
+                      <Hourglass className="h-3 w-3" />
+                      <span className="text-xs font-medium">{STATION_WAITING_TIME}m stops at stations</span>
+                    </div>
                   </div>
                 </div>
 
@@ -301,6 +271,10 @@ const Booking = () => {
                     <div className="flex items-center gap-1 text-xs text-muted-foreground">
                       <Clock className="h-3 w-3" />
                       <span>{travelDuration.display}</span>
+                    </div>
+                    <div className="flex items-center gap-1 text-xs text-orange-600 mt-1">
+                      <Hourglass className="h-3 w-3" />
+                      <span>2m stops included</span>
                     </div>
                   </div>
 
@@ -428,6 +402,13 @@ const Booking = () => {
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Duration</span>
                   <span className="font-medium">{travelDuration.display}</span>
+                </div>
+                <div className="flex justify-between text-orange-600">
+                  <span className="text-muted-foreground">Waiting Time</span>
+                  <span className="font-medium flex items-center gap-1">
+                    <Hourglass className="h-3 w-3" />
+                    {STATION_WAITING_TIME}m at stations
+                  </span>
                 </div>
               </div>
 

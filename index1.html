@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Google Sheet CRUD</title>
+    <style>
+      body {
+        font-family: Arial;
+        padding: 20px;
+        background: #f5f5f5;
+      }
+      h1 {
+        text-align: center;
+      }
+      form,
+      table {
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        box-shadow: 0 0 5px rgba(0, 0, 0, 0.1);
+      }
+      input {
+        margin: 5px 0;
+        padding: 8px;
+        width: 100%;
+      }
+      button {
+        background: #007bff;
+        color: white;
+        padding: 8px 12px;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        margin-right: 5px;
+      }
+      button:hover {
+        background: #0056b3;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      th,
+      td {
+        border-bottom: 1px solid #ddd;
+        padding: 8px;
+        text-align: left;
+      }
+      tr:hover {
+        background: #f1f1f1;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Google Sheet CRUD App</h1>
+
+    <form id="form">
+      <input type="hidden" id="id" />
+      <input type="text" id="name" placeholder="Name" required />
+      <input type="email" id="email" placeholder="Email" required />
+      <input type="text" id="role" placeholder="Role" required />
+      <button type="submit">Save</button>
+    </form>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Email</th>
+          <th>Role</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="data"></tbody>
+    </table>
+
+    <script>
+      const API_URL =
+        "https://script.google.com/macros/s/AKfycbxWEjgC7_ivmkbcyOT92ID4kTRHajqc03zxj8kOeppLNO5hBKgtaz_jy20hBw68-vT-ew/exec"; // replace with your script URL
+
+      async function loadData() {
+        const res = await fetch(API_URL);
+        const data = await res.json();
+        const tbody = document.getElementById("data");
+        tbody.innerHTML = "";
+        data.forEach((row) => {
+          tbody.innerHTML += `
+          <tr>
+            <td>${row.name}</td>
+            <td>${row.email}</td>
+            <td>${row.role}</td>
+            <td>
+              <button onclick="editRow('${row.id}','${row.name}','${row.email}','${row.role}')">Edit</button>
+              <button onclick="deleteRow('${row.id}')">Delete</button>
+            </td>
+          </tr>
+        `;
+        });
+      }
+
+      async function saveData(e) {
+        e.preventDefault();
+        const id = document.getElementById("id").value;
+        const name = document.getElementById("name").value;
+        const email = document.getElementById("email").value;
+        const role = document.getElementById("role").value;
+
+        const action = id ? "update" : "create";
+        await fetch(API_URL, {
+          method: "POST",
+          body: JSON.stringify({ action, id, name, email, role }),
+        });
+
+        document.getElementById("form").reset();
+        document.getElementById("id").value = "";
+        await loadData();
+      }
+
+      async function deleteRow(id) {
+        if (confirm("Delete this record?")) {
+          await fetch(API_URL, {
+            method: "POST",
+            body: JSON.stringify({ action: "delete", id }),
+          });
+          await loadData();
+        }
+      }
+
+      function editRow(id, name, email, role) {
+        document.getElementById("id").value = id;
+        document.getElementById("name").value = name;
+        document.getElementById("email").value = email;
+        document.getElementById("role").value = role;
+      }
+
+      document.getElementById("form").addEventListener("submit", saveData);
+      loadData();
+    </script>
+  </body>
+</html>

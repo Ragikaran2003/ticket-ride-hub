@@ -11,9 +11,11 @@ import {
   IndianRupee,
   Navigation,
   Users,
+  Hourglass,
 } from "lucide-react";
 import { searchTrains, getStations } from "@/lib/storage";
 import { toast } from "@/hooks/use-toast";
+import { formatTime,  calculateTrainTimesWithActualData , STATION_WAITING_TIME  } from "@/utils/timeCalculations";
 
 const SearchResults = () => {
   const navigate = useNavigate();
@@ -40,31 +42,32 @@ const SearchResults = () => {
         getStations(),
       ]);
 
-      console.log("🚆 Trains found:", trainsData);
+      console.log("🚆 Trains found with complete route:", trainsData);
 
-      // Use the data directly from API response
-      const trainsWithDetails = trainsData.map((train) => {
-        console.log(`🚆 Train ${train.name}:`, {
-          distance: train.distance,
-          price: train.price,
-          departure_time: train.departure_time,
-          arrival_time: train.arrival_time,
-          travel_time: train.travel_time,
-          available_seats: train.available_seats,
+      // Calculate times in frontend using actual route data
+      const trainsWithCalculatedTimes = trainsData.map((train) => {
+        // Calculate times using actual route data
+        const { departureTime, arrivalTime, travelDuration, travelTime } = calculateTrainTimesWithActualData(train);
+
+        console.log(`⏰ ${train.name} calculated times:`, {
+          departure: departureTime,
+          arrival: arrivalTime,
+          duration: travelDuration.display
         });
 
         return {
           ...train,
           distance: train.distance,
           calculatedPrice: train.price,
-          departureTime: train.departure_time || "08:00", // Use backend time or fallback
-          arrivalTime: train.arrival_time || "1:00", // Use backend time or fallback
-          travelTime: train.travel_time || "8h 0m", // Use backend time or fallback
+          departureTime: departureTime,
+          arrivalTime: arrivalTime,
+          travelDuration: travelDuration,
+          travelTime: travelTime,
         };
       });
 
-      console.log("✅ Trains with details:", trainsWithDetails);
-      setTrains(trainsWithDetails);
+      console.log("✅ Trains with calculated times:", trainsWithCalculatedTimes);
+      setTrains(trainsWithCalculatedTimes);
       setStations(stationsData);
     } catch (error) {
       console.error("❌ Search error:", error);
@@ -81,9 +84,8 @@ const SearchResults = () => {
 
   const handleBookNow = (train) => {
     console.log("🎫 Book Now clicked for train:", train);
-    console.log("📅 Date to pass:", date);
 
-    // Navigate to booking page with train data and ALL required parameters
+    // Navigate to booking page with train data
     navigate(`/book/${train.id}`, {
       state: {
         trainData: {
@@ -106,23 +108,6 @@ const SearchResults = () => {
       },
     });
   };
-
-  // Format time for display (remove seconds if present)
-  const formatTime = (time) => {
-    if (!time) return "--:--";
-    return time.includes(":") ? time.split(":").slice(0, 2).join(":") : time;
-  };
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-accent/5 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-          <p className="mt-4 text-muted-foreground">Searching for trains...</p>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-accent/5">
@@ -237,6 +222,11 @@ const SearchResults = () => {
                                 <span>{train.travelTime}</span>
                               </div>
                             )}
+                            {/* Waiting Time Display */}
+                            <div className="flex items-center gap-1 bg-orange-100 text-orange-700 px-2 py-1 rounded-full">
+                              <Hourglass className="h-3 w-3" />
+                              <span className="text-xs font-medium">{STATION_WAITING_TIME}m stops</span>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -265,6 +255,11 @@ const SearchResults = () => {
                           <span className="text-xs font-medium text-primary">
                             {train.travelTime || "--:--"}
                           </span>
+                        </div>
+                        {/* Waiting Time Info */}
+                        <div className="mt-1 text-xs text-orange-600 bg-orange-50 px-2 py-1 rounded-full">
+                          <Hourglass className="h-3 w-3 inline mr-1" />
+                          {STATION_WAITING_TIME}m stops included
                         </div>
                       </div>
 
@@ -307,6 +302,24 @@ const SearchResults = () => {
                             Only {train.available_seats} left!
                           </p>
                         )}
+                    </div>
+                  </div>
+
+                  {/* Additional Travel Info */}
+                  <div className="mt-4 pt-4 border-t border-gray-200">
+                    <div className="flex items-center justify-center gap-6 text-sm text-muted-foreground">
+                      <div className="flex items-center gap-1">
+                        <Clock className="h-4 w-4" />
+                        <span>Travel Time: {train.travelDuration?.display || train.travelTime}</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Hourglass className="h-4 w-4 text-orange-500" />
+                        <span>Waiting Time: {STATION_WAITING_TIME} minutes at each station</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Navigation className="h-4 w-4" />
+                        <span>Distance: {train.distance} km</span>
+                      </div>
                     </div>
                   </div>
                 </Card>

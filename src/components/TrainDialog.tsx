@@ -35,6 +35,11 @@ import {
   deleteRoute,
 } from "@/lib/storage";
 import { useToast } from "@/hooks/use-toast";
+import {
+  calculateTimeToNextStation,
+  calculateStationTimes,
+  formatDisplayTime
+} from "@/utils/timeCalculations"; // Import from new file
 
 const TrainDialog = ({ 
   open, 
@@ -112,69 +117,8 @@ const TrainDialog = ({
     }
   };
 
-  // Calculate time to next station in minutes - FIXED: Round to whole number
-  const calculateTimeToNextStation = (distance, speed) => {
-    if (!distance || !speed) return 0;
-    return Math.round((distance / speed) * 60); // Convert to minutes and round
-  };
-
-  // Add minutes to time and return formatted time - FIXED: Remove decimals
-  const addMinutesToTime = (time, minutesToAdd) => {
-    const [hours, minutes] = time.split(':').map(Number);
-    const totalMinutes = hours * 60 + minutes + Math.round(minutesToAdd); // 🔥 Round minutes
-    const newHours = Math.floor(totalMinutes / 60) % 24;
-    const newMinutes = totalMinutes % 60;
-    return `${String(newHours).padStart(2, '0')}:${String(newMinutes).padStart(2, '0')}`;
-  };
-
-  // Format time to remove any decimals - NEW FUNCTION
-  const formatDisplayTime = (time) => {
-    if (!time) return '--:--';
-    // Remove any decimal points and format as HH:MM
-    const [hours, minutes] = time.split(':').map(part => {
-      // Take only the integer part before decimal
-      const integerPart = part.split('.')[0];
-      return parseInt(integerPart) || 0;
-    });
-    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
-  };
-
-  // Calculate arrival and departure times for all stations - FIXED
-  const calculateStationTimes = () => {
-    if (!formData.startTime || routeStations.length === 0) return routeStations;
-
-    const stationsWithTimes = [...routeStations];
-    const speed = parseFloat(formData.speed) || 60;
-    
-    // First station - format time to remove decimals
-    stationsWithTimes[0] = {
-      ...stationsWithTimes[0],
-      arrivalTime: formatDisplayTime(formData.startTime),
-      departureTime: formatDisplayTime(formData.startTime)
-    };
-
-    // Calculate for subsequent stations
-    for (let i = 0; i < stationsWithTimes.length - 1; i++) {
-      const currentStation = stationsWithTimes[i];
-      const distance = currentStation.distanceToNext || 0;
-      
-      if (distance > 0) {
-        const travelTimeMinutes = calculateTimeToNextStation(distance, speed);
-        const arrivalTimeNext = addMinutesToTime(currentStation.departureTime, travelTimeMinutes);
-        
-        const waitingTimeAtStation = 2;
-        const departureTimeNext = addMinutesToTime(arrivalTimeNext, waitingTimeAtStation);
-        
-        stationsWithTimes[i + 1] = {
-          ...stationsWithTimes[i + 1],
-          arrivalTime: formatDisplayTime(arrivalTimeNext), // 🔥 Format time
-          departureTime: formatDisplayTime(departureTimeNext) // 🔥 Format time
-        };
-      }
-    }
-
-    return stationsWithTimes;
-  };
+  // Use imported function
+  const stationsWithTimes = calculateStationTimes(formData.startTime, formData.speed, routeStations);
 
   const handleSubmit = async () => {
     console.log('🚀 Submitting train data...');
@@ -267,7 +211,6 @@ const TrainDialog = ({
         const newTrain = await addTrain(trainData);
         console.log('✅ New train response:', newTrain);
         
-        // Check if newTrain is defined and has an id
         if (!newTrain) {
           throw new Error('Failed to create train: No train ID returned from server');
         }
@@ -326,7 +269,6 @@ const TrainDialog = ({
       return;
     }
 
-    // If there are existing stations, update the distance for the last station
     if (routeStations.length > 0) {
       const updatedStations = [...routeStations];
       const lastIndex = updatedStations.length - 1;
@@ -335,15 +277,13 @@ const TrainDialog = ({
         distanceToNext: parseFloat(distanceToNext) || 0,
       };
 
-      // Add new station with no distance (it's the last station)
       const newStation = {
         ...station,
-        distanceToNext: 0, // Last station has no distance
+        distanceToNext: 0,
       };
 
       setRouteStations([...updatedStations, newStation]);
     } else {
-      // First station - no distance needed
       const newStation = {
         ...station,
         distanceToNext: 0,
@@ -367,8 +307,6 @@ const TrainDialog = ({
     };
     setRouteStations(updatedStations);
   };
-
-  const stationsWithTimes = calculateStationTimes();
 
   return (
     <Dialog
@@ -496,7 +434,7 @@ const TrainDialog = ({
                         </div>
                       </div>
                       
-                      {/* Time Information - FIXED: Use formatted times */}
+                      {/* Time Information - Use imported function */}
                       <div className="text-right">
                         {stationsWithTimes[index]?.arrivalTime && (
                           <div className="flex items-center gap-2 text-sm bg-blue-100 px-2 py-1 rounded">
@@ -548,7 +486,7 @@ const TrainDialog = ({
                         </span>
                       </div>
                       
-                      {/* Travel Time Information - FIXED: Use rounded values */}
+                      {/* Travel Time Information - Use imported function */}
                       {formData.startTime && formData.speed && station.distanceToNext && (
                         <div className="mt-2 p-2 bg-white rounded border">
                           <div className="text-xs text-blue-600">
@@ -698,7 +636,7 @@ const TrainDialog = ({
                       <p><strong>Start Time:</strong> {formData.startTime}</p>
                       <p><strong>Average Speed:</strong> {formData.speed} km/h</p>
                       
-                      {/* Timetable - FIXED: Use formatted times */}
+                      {/* Timetable - Use imported function */}
                       <p><strong>Timetable:</strong></p>
                       <div className="bg-white p-3 rounded border">
                         <div className="space-y-2">

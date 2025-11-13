@@ -23,7 +23,7 @@ export const trainService = {
   createTrain: async (trainData) => {
     const response = await api.post('/trains', trainData);
     console.log('🚆 Train creation response:', response.data);
-    return response.data.train; // 🔥 Return the train object with ID
+    return response.data.train;
   },
 
   // Update train (Admin only)

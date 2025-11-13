@@ -5,23 +5,34 @@ import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Shield } from 'lucide-react';
-import { loginAdmin } from '@/lib/storage'; // 🔥 Use your service function
+import { loginAdmin } from '@/lib/storage';
 import { useToast } from '@/hooks/use-toast';
-import api from '@/services/api'; // 🔥 Import api instance
+import api from '@/services/api';
 
 const AdminLogin = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [email, setEmail] = useState('admin@ticketride.com');
-  const [password, setPassword] = useState('admin123');
+  const [formData, setFormData] = useState({
+    email: 'admin@ticketride.com',
+    password: 'admin123'
+  });
   const [isLoading, setIsLoading] = useState(false);
 
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { id, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [id]: value
+    }));
+  };
+
   const handleLogin = async () => {
-    console.log('🔄 Login function called');
+    console.log('🔄 Login function called with:', formData);
     
-    if (!email || !password) {
+    if (!formData.email || !formData.password) {
       toast({
-        title: 'Please fill all fields',
+        title: 'Validation Error',
+        description: 'Please fill all fields',
         variant: 'destructive',
       });
       return;
@@ -32,25 +43,36 @@ const AdminLogin = () => {
     try {
       console.log('📤 Calling loginAdmin service...');
       
-      // 🔥 Use the service function from storage instead of direct fetch
-      const admin = await loginAdmin(email, password);
+      const admin = await loginAdmin(formData.email, formData.password);
       
-      console.log('✅ Login successful:', admin);
+      console.log('✅ Login successful, admin data:', admin);
 
       toast({
         title: 'Admin Access Granted',
         description: `Welcome, ${admin.name}`,
       });
 
-      console.log('🔄 Navigating to dashboard...');
-      // Use navigate for better UX
-      navigate('/admin/dashboard');
+      // Wait a moment before navigation for better UX
+      setTimeout(() => {
+        navigate('/admin/dashboard', { replace: true });
+      }, 1000);
       
     } catch (error: any) {
       console.error('❌ Login failed:', error);
+      
+      let errorMessage = 'Login failed. Please try again.';
+      
+      if (error.message.includes('Invalid admin credentials')) {
+        errorMessage = 'Invalid email or password';
+      } else if (error.message.includes('Network Error')) {
+        errorMessage = 'Cannot connect to server. Please check if backend is running.';
+      } else if (error.message.includes('timeout')) {
+        errorMessage = 'Request timeout. Please try again.';
+      }
+      
       toast({
         title: 'Access Denied',
-        description: error.message || 'Invalid admin credentials',
+        description: errorMessage,
         variant: 'destructive',
       });
     } finally {
@@ -64,21 +86,30 @@ const AdminLogin = () => {
     }
   };
 
-  // Test backend connection using api instance
   const testConnection = async () => {
     try {
-      // 🔥 Use the api instance instead of direct fetch
+      console.log('🔌 Testing backend connection...');
       const response = await api.get('/health');
-      console.log('Backend health check:', response.data);
+      console.log('✅ Backend health check:', response.data);
+      
       toast({
-        title: 'Backend Connected',
-        description: 'Backend server is running',
+        title: 'Backend Connected ✅',
+        description: `Server: ${response.data.message}`,
       });
     } catch (error: any) {
-      console.error('Backend connection failed:', error);
+      console.error('❌ Backend connection failed:', error);
+      
+      let errorMessage = 'Cannot connect to backend server';
+      
+      if (error.code === 'NETWORK_ERROR') {
+        errorMessage = 'Network error. Check if backend is running on localhost:5000';
+      } else if (error.response?.status === 404) {
+        errorMessage = 'Backend endpoint not found';
+      }
+      
       toast({
-        title: 'Backend Connection Failed',
-        description: error.message || 'Make sure backend server is running',
+        title: 'Backend Connection Failed ❌',
+        description: errorMessage,
         variant: 'destructive',
       });
     }
@@ -99,10 +130,11 @@ const AdminLogin = () => {
               id="email"
               type="email"
               placeholder="admin@example.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              value={formData.email}
+              onChange={handleInputChange}
               onKeyPress={handleKeyPress}
               className="mt-1"
+              disabled={isLoading}
             />
           </div>
 
@@ -112,10 +144,11 @@ const AdminLogin = () => {
               id="password"
               type="password"
               placeholder="••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              value={formData.password}
+              onChange={handleInputChange}
               onKeyPress={handleKeyPress}
               className="mt-1"
+              disabled={isLoading}
             />
           </div>
 
@@ -128,34 +161,40 @@ const AdminLogin = () => {
             {isLoading ? (
               <>
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                Logging In...
+                Authenticating...
               </>
             ) : (
               'Access Admin Panel'
             )}
           </Button>
 
-          <Button 
-            variant="outline" 
-            className="w-full" 
-            onClick={() => navigate('/')}
-            type="button"
-          >
-            Back to Home
-          </Button>
+          <div className="flex gap-2">
+            <Button 
+              variant="outline" 
+              className="flex-1" 
+              onClick={() => navigate('/')}
+              type="button"
+              disabled={isLoading}
+            >
+              Back to Home
+            </Button>
 
-          <Button 
-            variant="outline" 
-            className="w-full" 
-            onClick={testConnection}
-            type="button"
-          >
-            Test Backend Connection
-          </Button>
+            <Button 
+              variant="outline" 
+              className="flex-1" 
+              onClick={testConnection}
+              type="button"
+              disabled={isLoading}
+            >
+              Test Connection
+            </Button>
+          </div>
 
           <div className="mt-4 p-3 bg-muted rounded-lg">
             <p className="text-xs text-muted-foreground text-center">
-              Demo: admin@ticketride.com / admin123
+              <strong>Demo Credentials:</strong><br />
+              Email: admin@ticketride.com<br />
+              Password: admin123
             </p>
           </div>
         </div>
